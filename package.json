@@ -2,16 +2,42 @@
   "name": "criteria-assistant-web",
   "version": "1.0.0",
   "type": "module",
-  "description": "Here are the README.md and architecture.md for the web version using Architecture 1:",
+  "description": "A modern web application for analyzing and annotating federal facility documents with live keyword highlighting and URL validation.",
   "main": "index.js",
+  "homepage": "https://github.com/heythisisgordon/criteria-assistant-web",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/heythisisgordon/criteria-assistant-web.git"
+  },
+  "bugs": {
+    "url": "https://github.com/heythisisgordon/criteria-assistant-web/issues"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "serve": "vite preview"
+    "build:check": "tsc --noEmit && vite build",
+    "build:verify": "npm run build && node scripts/verify-build.js",
+    "preview": "vite preview",
+    "serve": "vite preview --port 4173",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "pdf",
+    "annotation",
+    "document-analysis",
+    "federal-facilities",
+    "react",
+    "typescript",
+    "vite",
+    "pdf.js"
+  ],
+  "author": "Gordon Banks <gordon@human-centered-systems.com> (Human-Centered Systems LLC)",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",

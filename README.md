@@ -6,6 +6,12 @@ Here are the README.md and architecture.md for the web version using Architectur
 
 A modern web application for analyzing and annotating federal facility documents with live keyword highlighting and URL validation.
 
+## 🌐 Live Demo
+
+**Try it now**: [https://criteria-assistant-web.onrender.com/](https://criteria-assistant-web.onrender.com/)
+
+The live site automatically deploys from the `main` branch and showcases the latest features.
+
 ## 🚀 Features
 
 - **Client-Side PDF Rendering**: Fast, responsive PDF viewing powered by PDF.js
