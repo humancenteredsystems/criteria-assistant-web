@@ -13,29 +13,29 @@ export interface TextItem {
 }
 
 export class PDFService {
-  private pdfDoc: any = null;
+  // 🔥 SINGLETON FIX: Make service stateless - no shared pdfDoc state
 
-  // Load a PDF document from a File object
+  // Load a PDF document from a File object and return it directly
   async loadDocument(file: File): Promise<any> {
     const arrayBuffer = await file.arrayBuffer();
-    this.pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    return this.pdfDoc;
+    const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    return pdfDoc; // Return the document instead of storing it
   }
 
-  // Get total number of pages
-  getPageCount(): number {
-    if (!this.pdfDoc) {
-      throw new Error('PDF document not loaded');
+  // Get total number of pages from a specific document
+  getPageCount(pdfDoc: any): number {
+    if (!pdfDoc) {
+      throw new Error('PDF document not provided');
     }
-    return this.pdfDoc.numPages;
+    return pdfDoc.numPages;
   }
 
   // Render a specific page to a canvas at the given scale
-  async renderPage(pageNum: number, scale: number): Promise<HTMLCanvasElement> {
-    if (!this.pdfDoc) {
-      throw new Error('PDF document not loaded');
+  async renderPage(pdfDoc: any, pageNum: number, scale: number): Promise<HTMLCanvasElement> {
+    if (!pdfDoc) {
+      throw new Error('PDF document not provided');
     }
-    const page = await this.pdfDoc.getPage(pageNum);
+    const page = await pdfDoc.getPage(pageNum);
     const viewport = page.getViewport({ scale });
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d')!;
@@ -46,11 +46,11 @@ export class PDFService {
   }
 
   // Extract text items with positioning for annotations
-  async extractText(pageNum: number): Promise<TextItem[]> {
-    if (!this.pdfDoc) {
-      throw new Error('PDF document not loaded');
+  async extractText(pdfDoc: any, pageNum: number): Promise<TextItem[]> {
+    if (!pdfDoc) {
+      throw new Error('PDF document not provided');
     }
-    const page = await this.pdfDoc.getPage(pageNum);
+    const page = await pdfDoc.getPage(pageNum);
     const textContent = await page.getTextContent();
     return textContent.items.map((item: any) => {
       const transform = item.transform;
@@ -65,5 +65,5 @@ export class PDFService {
   }
 }
 
-// Export a singleton instance
+// Export a singleton instance (now stateless, so safe to share)
 export default new PDFService();
