@@ -1,8 +1,5 @@
-// PDF Service: wrapper around PDF.js for loading, rendering, and text extraction
-import { GlobalWorkerOptions, getDocument, PDFDocumentProxy } from 'pdfjs-dist';
-import workerSrc from 'pdfjs-dist/build/pdf.worker.min.js';
-
-GlobalWorkerOptions.workerSrc = workerSrc as string;
+// PDF Service: wrapper around PDF.js using the webpack module for automatic worker configuration
+import * as pdfjsLib from 'pdfjs-dist/webpack';
 
 export interface TextItem {
   text: string;
@@ -13,12 +10,12 @@ export interface TextItem {
 }
 
 export class PDFService {
-  private pdfDoc: PDFDocumentProxy | null = null;
+  private pdfDoc: any = null;
 
   // Load a PDF document from a File object
-  async loadDocument(file: File): Promise<PDFDocumentProxy> {
+  async loadDocument(file: File): Promise<any> {
     const arrayBuffer = await file.arrayBuffer();
-    this.pdfDoc = await getDocument({ data: arrayBuffer }).promise;
+    this.pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     return this.pdfDoc;
   }
 
@@ -52,8 +49,8 @@ export class PDFService {
     }
     const page = await this.pdfDoc.getPage(pageNum);
     const textContent = await page.getTextContent();
-    return textContent.items.map(item => {
-      const transform = (item as any).transform;
+    return textContent.items.map((item: any) => {
+      const transform = item.transform;
       return {
         text: (item as any).str,
         x: transform[4],
@@ -66,4 +63,4 @@ export class PDFService {
 }
 
 // Export a singleton instance
-export default new PDFService();
+export default new PDFService();

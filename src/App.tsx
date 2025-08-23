@@ -1,7 +1,6 @@
 // App component: handles file upload and renders PDFViewer
 import React, { useState } from 'react';
 import PDFViewer from './components/PDFViewer/PDFViewer';
-import './App.css';
 
 const App: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
