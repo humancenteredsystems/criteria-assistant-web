@@ -46,6 +46,8 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
   };
   const zoomIn = () => setScale(scale + 0.25);
   const zoomOut = () => setScale(Math.max(0.25, scale - 0.25));
+  const fitToWidth = () => setScale(1.0); // Standard fit-to-width scale
+  const fitToPage = () => setScale(0.75); // Standard fit-to-page scale
 
   return (
     <div className="pdf-container">
@@ -70,6 +72,8 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
           <button onClick={goNext} disabled={currentPage >= pageCount}>Next</button>
           <button onClick={zoomOut}>-</button>
           <button onClick={zoomIn}>+</button>
+          <button onClick={fitToWidth}>Fit Width</button>
+          <button onClick={fitToPage}>Fit Page</button>
         </div>
         <div className="viewer-container">
           <canvas ref={canvasRef}></canvas>

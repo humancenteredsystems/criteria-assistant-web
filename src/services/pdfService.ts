@@ -1,5 +1,8 @@
-// PDF Service: wrapper around PDF.js using the webpack module for automatic worker configuration
-import * as pdfjsLib from 'pdfjs-dist/webpack';
+// PDF Service: wrapper around PDF.js with proper Vite configuration
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Configure worker for Vite - worker file will be served from public directory
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 export interface TextItem {
   text: string;
