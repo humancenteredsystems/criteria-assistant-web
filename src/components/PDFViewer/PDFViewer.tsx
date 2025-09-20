@@ -3,6 +3,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import pdfService from '../../services/pdfService';
 import './PDFViewer.css';
 
+import SearchBar from '../SearchBar/SearchBar';
+import TextLayer from '../TextLayer/TextLayer';
+
 interface PDFViewerProps {
   file: File;
 }
@@ -22,64 +25,56 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
   useEffect(() => {
     async function load() {
       try {
-        setIsLoading(true); // 🔥 LOADING STATES: Show loading indicator
+        setIsLoading(true);
         setIsDocumentLoaded(false);
-        setError(null); // Clear previous errors
+        setError(null);
         const pdf = await pdfService.loadDocument(file);
-        setPdfDoc(pdf); // Store the document in component state
+        setPdfDoc(pdf);
         setPageCount(pdf.numPages);
         setCurrentPage(1);
         setIsDocumentLoaded(true);
       } catch (err) {
-        // 🔥 ERROR HANDLING: Catch PDF loading failures
         console.error('Failed to load PDF:', err);
         setError(`Failed to load PDF: ${err instanceof Error ? err.message : 'Unknown error'}`);
         setIsDocumentLoaded(false);
       } finally {
-        setIsLoading(false); // 🔥 LOADING STATES: Hide loading indicator
+        setIsLoading(false);
       }
     }
     load();
   }, [file]);
 
-  // Render page when currentPage or scale changes - BUT ONLY after document is loaded
+  // Render page when currentPage or scale changes - only after document is loaded
   useEffect(() => {
-    if (!isDocumentLoaded || !pdfDoc) return; // 🔥 RACE CONDITION FIX: Wait for document to load
-    
+    if (!isDocumentLoaded || !pdfDoc) return;
     async function render() {
       try {
-        setIsRendering(true); // 🔥 LOADING STATES: Show rendering indicator
+        setIsRendering(true);
         const canvas = canvasRef.current;
         if (!canvas) return;
-        const rendered = await pdfService.renderPage(pdfDoc, currentPage, scale); // Pass pdfDoc to service
+        const rendered = await pdfService.renderPage(pdfDoc, currentPage, scale);
         const context = canvas.getContext('2d')!;
         canvas.width = rendered.width;
         canvas.height = rendered.height;
         context.clearRect(0, 0, canvas.width, canvas.height);
         context.drawImage(rendered, 0, 0);
       } catch (err) {
-        // 🔥 ERROR HANDLING: Catch page rendering failures
         console.error('Failed to render page:', err);
         setError(`Failed to render page ${currentPage}: ${err instanceof Error ? err.message : 'Unknown error'}`);
       } finally {
-        setIsRendering(false); // 🔥 LOADING STATES: Hide rendering indicator
+        setIsRendering(false);
       }
     }
     render();
-  }, [currentPage, scale, isDocumentLoaded, pdfDoc]); // Added pdfDoc dependency
+  }, [currentPage, scale, isDocumentLoaded, pdfDoc]);
 
-  const goPrev = () => {
-    if (currentPage > 1) setCurrentPage(currentPage - 1);
-  };
-  const goNext = () => {
-    if (currentPage < pageCount) setCurrentPage(currentPage + 1);
-  };
+  const goPrev = () => { if (currentPage > 1) setCurrentPage(currentPage - 1); };
+  const goNext = () => { if (currentPage < pageCount) setCurrentPage(currentPage + 1); };
   const zoomIn = () => setScale(scale + 0.25);
   const zoomOut = () => setScale(Math.max(0.25, scale - 0.25));
-  const fitToWidth = () => setScale(1.0); // Standard fit-to-width scale
-  const fitToPage = () => setScale(0.75); // Standard fit-to-page scale
+  const fitToWidth = () => setScale(1.0);
+  const fitToPage = () => setScale(0.75);
 
-  // 🔥 LOADING STATES: Show error message if there's an error
   if (error) {
     return (
       <div className="pdf-container">
@@ -92,7 +87,6 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
     );
   }
 
-  // 🔥 LOADING STATES: Show loading message while document loads
   if (isLoading) {
     return (
       <div className="pdf-container">
@@ -108,7 +102,6 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
     <div className="pdf-container">
       <nav className="pdf-sidebar">
         <ul className="pdf-thumbnails">
-          {/* 🔥 STATE INITIALIZATION FIX: Only render thumbnails when document is loaded */}
           {isDocumentLoaded && pageCount > 0 ? (
             Array.from({ length: pageCount }, (_, i) => i + 1).map(page => (
               <li key={page}>
@@ -121,13 +114,13 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
               </li>
             ))
           ) : (
-            <li>
-              <p>No pages available</p>
-            </li>
+            <li><p>No pages available</p></li>
           )}
         </ul>
       </nav>
       <div className="pdf-main">
+        {/* Search bar for text */}
+        <SearchBar />
         <div className="controls">
           <button onClick={goPrev} disabled={currentPage <= 1}>Previous</button>
           <span>{currentPage} / {pageCount}</span>
@@ -138,13 +131,14 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
           <button onClick={fitToPage}>Fit Page</button>
         </div>
         <div className="viewer-container">
-          {/* 🔥 LOADING STATES: Show rendering indicator */}
           {isRendering && (
-            <div className="rendering-overlay">
-              <p>Rendering page...</p>
-            </div>
+            <div className="rendering-overlay"><p>Rendering page...</p></div>
           )}
           <canvas ref={canvasRef}></canvas>
+          {/* Text layer overlays selectable and highlighted text */}
+          {pdfDoc && (
+            <TextLayer pdfDoc={pdfDoc} pageNum={currentPage} scale={scale} />
+          )}
         </div>
       </div>
     </div>

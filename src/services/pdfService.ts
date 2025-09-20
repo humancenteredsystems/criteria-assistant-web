@@ -4,13 +4,8 @@ import * as pdfjsLib from 'pdfjs-dist';
 // Configure worker for Vite - worker file will be served from public directory
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
-export interface TextItem {
-  text: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+import { TextItem } from '../types/text';
+
 
 export class PDFService {
   // 🔥 SINGLETON FIX: Make service stateless - no shared pdfDoc state
@@ -55,7 +50,7 @@ export class PDFService {
     return textContent.items.map((item: any) => {
       const transform = item.transform;
       return {
-        text: (item as any).str,
+        str: (item as any).str,
         x: transform[4],
         y: transform[5],
         width: (item as any).width,
