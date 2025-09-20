@@ -17,7 +17,7 @@ interface TextLayerProps {
 const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [textDivs, setTextDivs] = useState<HTMLElement[]>([]);
-  const { searchTerm, matches, currentMatchIndex } = useTextStore();
+  const { searchTerm, matches, currentMatchIndex, loadText } = useTextStore();
 
   // Render text layer using PDF.js API when page or scale changes
   useEffect(() => {
@@ -27,6 +27,9 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
       try {
         const divs = await pdfService.renderTextLayer(pdfDoc, pageNum, scale, containerRef.current!);
         setTextDivs(divs);
+        
+        // Also populate textStore cache for search functionality
+        await loadText(pdfDoc, pageNum);
       } catch (error) {
         console.error('Failed to render text layer:', error);
         setTextDivs([]);
@@ -34,7 +37,7 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
     };
 
     renderText();
-  }, [pdfDoc, pageNum, scale]);
+  }, [pdfDoc, pageNum, scale, loadText]);
 
   // Auto-scroll active match into view
   useEffect(() => {
