@@ -1,5 +1,5 @@
 // Zustand store for PDF text extraction and search
-import create from 'zustand';
+import { create } from 'zustand';
 import PDFService from '../services/pdfService';
 import { TextItem } from '../types/text';
 
