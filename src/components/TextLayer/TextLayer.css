@@ -1,0 +1,20 @@
+/* src/components/TextLayer/TextLayer.css */
+.text-layer {
+  position: absolute;
+  inset: 0;               /* left:0; top:0; right:0; bottom:0; */
+  pointer-events: none;   /* allow interactions to pass through */
+}
+
+.text-item {
+  position: absolute;
+  white-space: pre;
+  transform-origin: 0 0;
+}
+
+.text-item.highlight {
+  background: rgba(255, 235, 59, 0.45);
+}
+
+.text-item.active {
+  outline: 2px solid #f57c00;
+}

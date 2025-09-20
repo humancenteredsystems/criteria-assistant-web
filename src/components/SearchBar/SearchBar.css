@@ -1,0 +1,34 @@
+/* src/components/SearchBar/SearchBar.css */
+.search-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border-bottom: 1px solid #ddd;
+  background: #fff;
+}
+.search-bar input {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+.search-count {
+  min-width: 72px;
+  text-align: center;
+  font: 500 12px/1.2 system-ui, sans-serif;
+  color: #555;
+}
+button.search-prev,
+button.search-next {
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #f8f8f8;
+  cursor: pointer;
+}
+button.search-prev:disabled,
+button.search-next:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

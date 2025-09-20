@@ -1,11 +1,11 @@
 // PDF Service: wrapper around PDF.js with proper Vite configuration
 import * as pdfjsLib from 'pdfjs-dist';
+import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
-// Configure worker for Vite - worker file will be served from public directory
-pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+// Configure worker for Vite - use ES module worker URL
+(pdfjsLib as any).GlobalWorkerOptions.workerSrc = workerUrl;
 
 import { TextItem } from '../types/text';
-
 
 export class PDFService {
   // 🔥 SINGLETON FIX: Make service stateless - no shared pdfDoc state
@@ -14,7 +14,7 @@ export class PDFService {
   async loadDocument(file: File): Promise<any> {
     const arrayBuffer = await file.arrayBuffer();
     const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    return pdfDoc; // Return the document instead of storing it
+    return pdfDoc;
   }
 
   // Get total number of pages from a specific document
@@ -60,5 +60,4 @@ export class PDFService {
   }
 }
 
-// Export a singleton instance (now stateless, so safe to share)
 export default new PDFService();

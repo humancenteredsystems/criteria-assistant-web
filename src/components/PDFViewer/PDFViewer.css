@@ -51,6 +51,7 @@
 }
 
 .viewer-container {
+  position: relative;
   flex: 1;
   overflow: auto;
   display: flex;

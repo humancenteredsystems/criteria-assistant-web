@@ -11,17 +11,25 @@ interface TextLayerProps {
 
 /**
  * Renders an overlay of selectable text items on top of the PDF canvas.
- * Highlights search matches and the active match differently.
+ * Highlights search matches and auto-scrolls the active match into view.
  */
 const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
   const { textCache, matches, currentMatchIndex, loadText } = useTextStore();
 
-  // Load text for this page when pdfDoc or pageNum changes
+  // Load text items for the page
   useEffect(() => {
     if (pdfDoc) {
       loadText(pdfDoc, pageNum);
     }
   }, [pdfDoc, pageNum, loadText]);
+
+  // Auto-scroll the active highlighted item into view
+  useEffect(() => {
+    const el = document.querySelector('.text-item.active') as HTMLElement | null;
+    if (el) {
+      el.scrollIntoView({ block: 'center', inline: 'center' });
+    }
+  }, [currentMatchIndex, matches]);
 
   const items: TextItem[] = textCache[pageNum] || [];
 
