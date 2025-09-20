@@ -12,17 +12,3 @@
   text-shadow: none !important;
   caret-color: transparent;
 }
-
-.text-item {
-  position: absolute;
-  white-space: pre;
-  transform-origin: 0 0;
-}
-
-.text-item.highlight {
-  background: rgba(255, 235, 59, 0.45);
-}
-
-.text-item.active {
-  outline: 2px solid #f57c00;
-}

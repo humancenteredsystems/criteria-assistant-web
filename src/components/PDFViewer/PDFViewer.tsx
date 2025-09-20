@@ -54,8 +54,13 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
         if (!canvas) return;
         const rendered = await pdfService.renderPage(pdfDoc, currentPage, scale);
         const context = canvas.getContext('2d')!;
+        
+        // Copy the HiDPI-aware dimensions from the rendered canvas
+        canvas.style.width = rendered.style.width;
+        canvas.style.height = rendered.style.height;
         canvas.width = rendered.width;
         canvas.height = rendered.height;
+        
         context.clearRect(0, 0, canvas.width, canvas.height);
         context.drawImage(rendered, 0, 0);
       } catch (err) {
@@ -134,7 +139,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
           {isRendering && (
             <div className="rendering-overlay"><p>Rendering page...</p></div>
           )}
-          <canvas ref={canvasRef}></canvas>
+          <canvas ref={canvasRef} className="pdf-canvas"></canvas>
           {/* Text layer overlays selectable and highlighted text */}
           {pdfDoc && (
             <TextLayer pdfDoc={pdfDoc} pageNum={currentPage} scale={scale} />

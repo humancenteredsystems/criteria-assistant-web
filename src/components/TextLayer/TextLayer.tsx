@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import useTextStore from '../../store/textStore';
-import { TextItem } from '../../types/text';
+import pdfService from '../../services/pdfService';
+import HighlightLayer from '../Layers/HighlightLayer';
 import './TextLayer.css';
 
 interface TextLayerProps {
@@ -10,56 +11,56 @@ interface TextLayerProps {
 }
 
 /**
- * Renders an overlay of selectable text items on top of the PDF canvas.
- * Highlights search matches and auto-scrolls the active match into view.
+ * Renders transparent text geometry using PDF.js renderTextLayer API for proper alignment.
+ * Overlays highlight rectangles for search matches.
  */
 const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
-  const { textCache, matches, currentMatchIndex, loadText } = useTextStore();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [textDivs, setTextDivs] = useState<HTMLElement[]>([]);
+  const { searchTerm, matches, currentMatchIndex } = useTextStore();
 
-  // Load text items for the page
+  // Render text layer using PDF.js API when page or scale changes
   useEffect(() => {
-    if (pdfDoc) {
-      loadText(pdfDoc, pageNum);
-    }
-  }, [pdfDoc, pageNum, loadText]);
+    if (!pdfDoc || !containerRef.current) return;
 
-  // Auto-scroll the active highlighted item into view
+    const renderText = async () => {
+      try {
+        const divs = await pdfService.renderTextLayer(pdfDoc, pageNum, scale, containerRef.current!);
+        setTextDivs(divs);
+      } catch (error) {
+        console.error('Failed to render text layer:', error);
+        setTextDivs([]);
+      }
+    };
+
+    renderText();
+  }, [pdfDoc, pageNum, scale]);
+
+  // Auto-scroll active match into view
   useEffect(() => {
-    const el = document.querySelector('.text-item.active') as HTMLElement | null;
-    if (el) {
-      el.scrollIntoView({ block: 'center', inline: 'center' });
-    }
-  }, [currentMatchIndex, matches]);
+    if (!searchTerm || currentMatchIndex < 0 || textDivs.length === 0) return;
 
-  const items: TextItem[] = textCache[pageNum] || [];
+    const matchingDivs = textDivs.filter(div => {
+      const text = div.textContent || '';
+      return text.toLowerCase().includes(searchTerm.toLowerCase());
+    });
+
+    const activeDiv = matchingDivs[currentMatchIndex];
+    if (activeDiv) {
+      activeDiv.scrollIntoView({ block: 'center', inline: 'center' });
+    }
+  }, [currentMatchIndex, searchTerm, textDivs]);
 
   return (
-    <div className="text-layer" style={{ transform: `scale(${scale})`, transformOrigin: '0 0' }}>
-      {items.map((item, idx) => {
-        const isMatch = matches.includes(item);
-        const isActive = isMatch && matches[currentMatchIndex] === item;
-        const classNames = [
-          'text-item',
-          isMatch ? 'highlight' : '',
-          isActive ? 'active' : '',
-        ]
-          .join(' ')
-          .trim();
-
-        return (
-          <span
-            key={`${idx}-${item.x}-${item.y}`}
-            className={classNames}
-            style={{
-              left: `${item.x}px`,
-              top: `${item.y}px`,
-            }}
-          >
-            {item.str}
-          </span>
-        );
-      })}
-    </div>
+    <>
+      <div ref={containerRef} className="text-layer" />
+      <HighlightLayer 
+        textDivs={textDivs}
+        matches={matches}
+        currentMatchIndex={currentMatchIndex}
+        searchTerm={searchTerm}
+      />
+    </>
   );
 };
 

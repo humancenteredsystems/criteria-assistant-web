@@ -59,3 +59,29 @@
   align-items: center;
   background-color: #e0e0e0;
 }
+
+.pdf-canvas {
+  position: relative;
+  z-index: 0;
+}
+
+.text-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.highlight-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.annotation-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: auto;
+}

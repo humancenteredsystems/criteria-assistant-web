@@ -25,18 +25,30 @@ export class PDFService {
     return pdfDoc.numPages;
   }
 
-  // Render a specific page to a canvas at the given scale
+  // Render a specific page to a canvas at the given scale with HiDPI support
   async renderPage(pdfDoc: any, pageNum: number, scale: number): Promise<HTMLCanvasElement> {
     if (!pdfDoc) {
       throw new Error('PDF document not provided');
     }
     const page = await pdfDoc.getPage(pageNum);
     const viewport = page.getViewport({ scale });
+    const dpr = window.devicePixelRatio || 1;
+    
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d')!;
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    await page.render({ canvasContext: context, viewport }).promise;
+    
+    // Set CSS size and actual canvas size for HiDPI
+    canvas.style.width = `${viewport.width}px`;
+    canvas.style.height = `${viewport.height}px`;
+    canvas.width = Math.floor(viewport.width * dpr);
+    canvas.height = Math.floor(viewport.height * dpr);
+    
+    await page.render({
+      canvasContext: context,
+      viewport,
+      transform: [dpr, 0, 0, dpr, 0, 0]
+    }).promise;
+    
     return canvas;
   }
 
@@ -57,6 +69,31 @@ export class PDFService {
         height: (item as any).height
       };
     });
+  }
+
+  // Render text layer using PDF.js renderTextLayer API for proper alignment
+  async renderTextLayer(pdfDoc: any, pageNum: number, scale: number, container: HTMLElement): Promise<HTMLElement[]> {
+    if (!pdfDoc) {
+      throw new Error('PDF document not provided');
+    }
+    const page = await pdfDoc.getPage(pageNum);
+    const viewport = page.getViewport({ scale });
+    const textContent = await page.getTextContent();
+    
+    // Clear container and set dimensions
+    container.innerHTML = '';
+    container.style.width = `${viewport.width}px`;
+    container.style.height = `${viewport.height}px`;
+    
+    const textDivs: HTMLElement[] = [];
+    await (pdfjsLib as any).renderTextLayer({
+      textContent,
+      container,
+      viewport,
+      textDivs
+    });
+    
+    return textDivs;
   }
 }
 
