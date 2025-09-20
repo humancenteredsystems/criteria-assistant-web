@@ -2,7 +2,15 @@
 .text-layer {
   position: absolute;
   inset: 0;               /* left:0; top:0; right:0; bottom:0; */
+  z-index: 1;
   pointer-events: none;   /* allow interactions to pass through */
+}
+.text-layer,
+.text-layer span,
+.text-layer div {
+  color: transparent !important;
+  text-shadow: none !important;
+  caret-color: transparent;
 }
 
 .text-item {
