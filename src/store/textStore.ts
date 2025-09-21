@@ -1,36 +1,39 @@
-// Zustand store for PDF text extraction and search
+// Zustand store for DOM-based PDF text search
 import { create } from 'zustand';
-import PDFService from '../services/pdfService';
-import { TextItem } from '../types/text';
 
 interface TextStore {
-  textCache: Record<number, TextItem[]>;
+  textDivsByPage: Record<number, HTMLElement[]>;
   currentPage: number | null;
   searchTerm: string;
-  matches: TextItem[];
+  matches: HTMLElement[];
   currentMatchIndex: number;
-  loadText: (pdfDoc: any, pageNum: number) => Promise<void>;
+  setTextDivs: (pageNum: number, divs: HTMLElement[]) => void;
   setSearchTerm: (term: string) => void;
   nextMatch: () => void;
   prevMatch: () => void;
 }
 
 const useTextStore = create<TextStore>((set: (state: Partial<TextStore> | ((state: TextStore) => Partial<TextStore>)) => void, get: () => TextStore) => ({
-  textCache: {},
+  textDivsByPage: {},
   currentPage: null,
   searchTerm: '',
   matches: [],
   currentMatchIndex: -1,
 
-  // Load and cache text for a given page
-  loadText: async (pdfDoc: any, pageNum: number) => {
-    const items: TextItem[] = await PDFService.extractText(pdfDoc, pageNum);
+  // Store DOM elements for a given page
+  setTextDivs: (pageNum: number, divs: HTMLElement[]) => {
     set((state: TextStore) => {
-      const updatedCache = { ...state.textCache, [pageNum]: items };
+      const updatedDivs = { ...state.textDivsByPage, [pageNum]: divs };
       const term = state.searchTerm;
-      const matches = term ? items.filter((item: TextItem) => item.str.includes(term)) : [];
+      
+      // Search in current page's DOM elements
+      const matches = term ? divs.filter((div: HTMLElement) => {
+        const text = div.textContent || '';
+        return text.toLowerCase().includes(term.toLowerCase());
+      }) : [];
+      
       return {
-        textCache: updatedCache,
+        textDivsByPage: updatedDivs,
         currentPage: pageNum,
         matches,
         currentMatchIndex: matches.length > 0 ? 0 : -1,
@@ -42,8 +45,13 @@ const useTextStore = create<TextStore>((set: (state: Partial<TextStore> | ((stat
   setSearchTerm: (term: string) => {
     set((state: TextStore) => {
       const page = state.currentPage;
-      const items = page != null ? state.textCache[page] || [] : [];
-      const matches = term ? items.filter((item: TextItem) => item.str.includes(term)) : [];
+      const divs = page != null ? state.textDivsByPage[page] || [] : [];
+      
+      const matches = term ? divs.filter((div: HTMLElement) => {
+        const text = div.textContent || '';
+        return text.toLowerCase().includes(term.toLowerCase());
+      }) : [];
+      
       return {
         searchTerm: term,
         matches,

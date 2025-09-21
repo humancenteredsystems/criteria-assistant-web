@@ -17,7 +17,7 @@ interface TextLayerProps {
 const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [textDivs, setTextDivs] = useState<HTMLElement[]>([]);
-  const { searchTerm, matches, currentMatchIndex, loadText } = useTextStore();
+  const { searchTerm, matches, currentMatchIndex, setTextDivs: storeTextDivs } = useTextStore();
 
   // Render text layer using PDF.js API when page or scale changes
   useEffect(() => {
@@ -28,8 +28,8 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
         const divs = await pdfService.renderTextLayer(pdfDoc, pageNum, scale, containerRef.current!);
         setTextDivs(divs);
         
-        // Also populate textStore cache for search functionality
-        await loadText(pdfDoc, pageNum);
+        // Store DOM elements for search functionality
+        storeTextDivs(pageNum, divs);
       } catch (error) {
         console.error('Failed to render text layer:', error);
         setTextDivs([]);
@@ -37,22 +37,17 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
     };
 
     renderText();
-  }, [pdfDoc, pageNum, scale, loadText]);
+  }, [pdfDoc, pageNum, scale, storeTextDivs]);
 
   // Auto-scroll active match into view
   useEffect(() => {
-    if (!searchTerm || currentMatchIndex < 0 || textDivs.length === 0) return;
+    if (!searchTerm || currentMatchIndex < 0 || matches.length === 0) return;
 
-    const matchingDivs = textDivs.filter(div => {
-      const text = div.textContent || '';
-      return text.toLowerCase().includes(searchTerm.toLowerCase());
-    });
-
-    const activeDiv = matchingDivs[currentMatchIndex];
+    const activeDiv = matches[currentMatchIndex];
     if (activeDiv) {
       activeDiv.scrollIntoView({ block: 'center', inline: 'center' });
     }
-  }, [currentMatchIndex, searchTerm, textDivs]);
+  }, [currentMatchIndex, searchTerm, matches]);
 
   return (
     <>
