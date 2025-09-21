@@ -22,17 +22,52 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
   // Render text layer using PDF.js API when page or scale changes
   useEffect(() => {
     if (!pdfDoc || !containerRef.current) return;
-    
+
+    let cancelled = false;
+    let renderTask: any | null = null;
+
     const run = async () => {
       try {
-        const divs = await pdfService.renderTextLayer(pdfDoc, pageNum, scale, containerRef.current!);
-        setTextDivs(divs);
-      } catch (e) {
+        const container = containerRef.current;
+        if (!container) return;
+
+        const { textDivs: divs, renderTask: task } = await pdfService.renderTextLayer(
+          pdfDoc,
+          pageNum,
+          scale,
+          container
+        );
+        renderTask = task;
+
+        try {
+          await renderTask.promise;
+        } catch (taskError: any) {
+          if (taskError?.name === 'RenderingCancelledException') {
+            return;
+          }
+          throw taskError;
+        }
+
+        if (cancelled) return;
+
+        setTextDivs([...divs]);
+      } catch (e: any) {
+        if (cancelled) return;
+        if (e?.name === 'RenderingCancelledException') {
+          return;
+        }
         console.error('Failed to render text layer:', e);
         setTextDivs([]);
       }
     };
     run();
+
+    return () => {
+      cancelled = true;
+      if (renderTask && typeof renderTask.cancel === 'function') {
+        renderTask.cancel();
+      }
+    };
   }, [pdfDoc, pageNum, scale]);
 
   // compute matches whenever term, page, scale, or textDivs change
