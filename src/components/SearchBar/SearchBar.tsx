@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import useTextStore from '../../store/textStore';
 import './SearchBar.css';
 
@@ -8,12 +8,30 @@ import './SearchBar.css';
  */
 const SearchBar: React.FC = () => {
   const { searchTerm, setSearchTerm, nextMatch, prevMatch, matchDivIndicesByPage, currentPage, currentMatchIndex } = useTextStore();
+  const [inputValue, setInputValue] = useState(searchTerm);
 
   const total = (matchDivIndicesByPage[currentPage] ?? []).length;
 
+  // Debounce search term updates (150ms)
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (inputValue !== searchTerm) {
+        console.log(`SearchBar: Debounced search term update to "${inputValue}"`);
+        setSearchTerm(inputValue);
+      }
+    }, 150);
+
+    return () => clearTimeout(timeoutId);
+  }, [inputValue, searchTerm, setSearchTerm]);
+
+  // Sync input value when search term changes externally
+  useEffect(() => {
+    setInputValue(searchTerm);
+  }, [searchTerm]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     console.log(`SearchBar: Input changed to "${e.target.value}"`);
-    setSearchTerm(e.target.value);
+    setInputValue(e.target.value);
   };
 
   // Debug logging for store state
@@ -24,7 +42,7 @@ const SearchBar: React.FC = () => {
       <input
         type="text"
         placeholder="Search text..."
-        value={searchTerm}
+        value={inputValue}
         onChange={handleChange}
       />
       <button onClick={prevMatch} disabled={total === 0}>

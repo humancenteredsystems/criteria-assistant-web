@@ -10,5 +10,24 @@
 .text-layer div {
   color: transparent !important;
   text-shadow: none !important;
-  caret-color: transparent;
+  caret-color: transparent !important;
+  pointer-events: none !important;
+}
+
+.textLayer,
+.textLayer span,
+.textLayer div {
+  color: transparent !important;
+  text-shadow: none !important;
+  caret-color: transparent !important;
+  pointer-events: none !important;
+}
+
+.highlight { 
+  position: absolute; 
+  background: rgba(255,235,59,.45); 
+}
+
+.highlight.active { 
+  outline: 2px solid #f57c00; 
 }

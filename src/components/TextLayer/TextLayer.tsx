@@ -19,7 +19,7 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale, textLayer
   const [textDivs, setTextDivs] = useState<HTMLElement[]>([]);
   const { searchTerm, currentMatchIndex, setPageMatches, setCurrentPage, setPdfRects } = useTextStore();
 
-  // Render text layer using PDF.js API when page or scale changes
+  // Render text layer only when pdfDoc/pageNum/scale change
   useEffect(() => {
     if (!pdfDoc || !textLayerRef.current) return;
 
@@ -82,13 +82,19 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale, textLayer
         renderTask.cancel();
       }
     };
-  }, [pdfDoc, pageNum, scale, textLayerRef]);
+  }, [pdfDoc, pageNum, scale]); // ❗ remove ref from deps; ref object identity is stable enough here
 
-  // compute matches whenever term, page, scale, or textDivs change
+  // keep current page in store, but write only when it actually changes
+  const lastPageRef = React.useRef<number | null>(null);
   useEffect(() => {
-    // setCurrentPage must always run
-    setCurrentPage(pageNum);
+    if (lastPageRef.current !== pageNum) {
+      setCurrentPage(pageNum);
+      lastPageRef.current = pageNum;
+    }
+  }, [pageNum, setCurrentPage]);
 
+  // compute matches ONLY when textDivs, term, or page change
+  useEffect(() => {
     // Only compute matches if we have textDivs populated
     if (textDivs.length === 0) {
       setPageMatches(pageNum, []);
@@ -107,11 +113,8 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale, textLayer
       .map((el, i) => (norm(el.textContent || '').includes(term) ? i : -1))
       .filter(i => i >= 0);
     
-    // Debug logging
-    console.log(`TextLayer: Page ${pageNum}, Term: "${term}", TextDivs: ${textDivs.length}, Matches: ${idx.length}`);
-    
     setPageMatches(pageNum, idx);
-  }, [textDivs, searchTerm, pageNum, scale, setPageMatches, setCurrentPage]);
+  }, [textDivs, searchTerm, pageNum, setPageMatches]);
 
   // Auto-scroll active match into view
   useEffect(() => {

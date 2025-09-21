@@ -12,7 +12,8 @@ type Props = {
 
 const HighlightLayer: React.FC<Props> = ({ textDivs, pageNum, scale, textLayerRef, hlLayerRef }) => {
   const { searchTerm, matchDivIndicesByPage, currentMatchIndex, pdfRectsByPage } = useTextStore();
-  const indices = matchDivIndicesByPage[pageNum] ?? [];
+  const raw = matchDivIndicesByPage[pageNum] ?? [];
+  const indices = React.useMemo(() => raw.slice(), [raw, pageNum]);
   const pdfRects = pdfRectsByPage[pageNum] ?? [];
 
   // Render highlights using PDF-space projection (no DOM reading)

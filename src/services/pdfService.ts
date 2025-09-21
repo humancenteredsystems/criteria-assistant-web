@@ -5,25 +5,7 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 // Configure worker for Vite - use ES module worker URL
 (pdfjsLib as any).GlobalWorkerOptions.workerSrc = workerUrl;
 
-// Import TextLayerBuilder for proper PDF.js v5.x usage
-let TextLayerBuilder: any = null;
-
-// Try to get TextLayerBuilder from PDF.js v5.x
-try {
-  // In PDF.js v5.x, TextLayerBuilder might be available on the main object
-  TextLayerBuilder = (pdfjsLib as any).TextLayerBuilder;
-  
-  // If not available directly, it might be in a different location
-  if (!TextLayerBuilder) {
-    // Check if it's available as a named export or in a different structure
-    const textLayerModule = (pdfjsLib as any).textLayer || (pdfjsLib as any).TextLayer;
-    if (textLayerModule) {
-      TextLayerBuilder = textLayerModule.TextLayerBuilder || textLayerModule;
-    }
-  }
-} catch (e) {
-  console.warn('TextLayerBuilder not available, will use manual text layer creation');
-}
+// We intentionally do NOT use TextLayerBuilder (API changed). We rely on renderTextLayer (v4/5) and a manual fallback.
 
 import { TextItem } from '../types/text';
 import { PDFRect, extractCssRect, cssToPdfRect, PageViewport as ProjectionViewport } from '../utils/coordinateProjection';
@@ -162,13 +144,12 @@ export class PDFService {
     
     const textDivs: HTMLElement[] = [];
     
-    // Try multiple approaches for PDF.js v5.x compatibility
-    
-    // Approach 1: Try the official renderTextLayer function
+    // Prefer official renderTextLayer if present (PDF.js v4/5)
     const renderTextLayerFn = (pdfjsLib as any).renderTextLayer;
     if (renderTextLayerFn && typeof renderTextLayerFn === 'function') {
       try {
-        console.log(`PDFService: Using official renderTextLayer for page ${pageNum}`);
+        // Single, stable path ─ no builder
+        // NOTE: renderTextLayer returns a task with { promise, cancel }
         const renderTask = renderTextLayerFn({
           textContent,
           container,
@@ -177,37 +158,11 @@ export class PDFService {
         });
         return { textDivs, renderTask };
       } catch (error) {
-        console.warn('Official renderTextLayer failed, trying TextLayerBuilder:', error);
+        console.warn('renderTextLayer failed, using manual text layer:', error);
       }
     }
-    
-    // Approach 2: Try TextLayerBuilder if available
-    if (TextLayerBuilder) {
-      try {
-        console.log(`PDFService: Using TextLayerBuilder for page ${pageNum}`);
-        const textLayerBuilder = new TextLayerBuilder({
-          textLayerDiv: container,
-          pageIndex: pageNum - 1,
-          viewport: viewport,
-        });
-        
-        textLayerBuilder.setTextContent(textContent);
-        const renderTask = textLayerBuilder.render();
-        
-        // Extract textDivs from the container after rendering
-        setTimeout(() => {
-          const divs = Array.from(container.querySelectorAll('div')) as HTMLElement[];
-          textDivs.push(...divs);
-        }, 0);
-        
-        return { textDivs, renderTask };
-      } catch (error) {
-        console.warn('TextLayerBuilder failed, using manual approach:', error);
-      }
-    }
-    
-    // Approach 3: Enhanced manual text layer creation (fallback)
-    console.log(`PDFService: Using enhanced manual text layer for page ${pageNum}`);
+
+    // Manual fallback (DOM-only geometry; glyphs hidden by CSS in the app)
     
     textContent.items.forEach((item: any, index: number) => {
       const div = document.createElement('div');
