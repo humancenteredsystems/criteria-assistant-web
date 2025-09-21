@@ -33,7 +33,10 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
   // Render text layer using PDF.js API when page or scale changes
   useEffect(() => {
     if (!pdfDoc || !containerRef.current) return;
-    
+
+    let cancelled = false;
+    let renderTask: any | null = null;
+
     const run = async () => {
       try {
         const divs = await pdfService.renderTextLayer(pdfDoc, pageNum, scale, containerRef.current!);
@@ -46,6 +49,13 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
       }
     };
     run();
+
+    return () => {
+      cancelled = true;
+      if (renderTask && typeof renderTask.cancel === 'function') {
+        renderTask.cancel();
+      }
+    };
   }, [pdfDoc, pageNum, scale]);
 
   useEffect(() => {

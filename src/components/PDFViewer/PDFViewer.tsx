@@ -1,5 +1,5 @@
 // PDFViewer component: displays PDF pages with navigation, zoom, and thumbnail sidebar
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import pdfService from '../../services/pdfService';
 import './PDFViewer.css';
 
@@ -21,56 +21,98 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
   const [isLoading, setIsLoading] = useState(false); // 🔥 LOADING STATES: Add loading indicator
   const [isRendering, setIsRendering] = useState(false); // 🔥 LOADING STATES: Add rendering indicator
 
+  const loadDocument = useCallback(async () => {
+    try {
+      const pdf = await pdfService.loadDocument(file);
+      setPdfDoc(pdf);
+      setPageCount(pdf.numPages);
+      setCurrentPage(1);
+      setIsDocumentLoaded(true);
+    } catch (err) {
+      console.error('Failed to load PDF:', err);
+      setError(`Failed to load PDF: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setIsDocumentLoaded(false);
+    } finally {
+      setIsLoading(false);
+    }
+
+  }, [file]);
+
+  const initiateLoad = useCallback(() => {
+    setError(null);
+    setIsLoading(true);
+    setIsDocumentLoaded(false);
+    void loadDocument();
+  }, [loadDocument]);
+
   // Load document on file change
   useEffect(() => {
-    async function load() {
-      try {
-        setIsLoading(true);
-        setIsDocumentLoaded(false);
-        setError(null);
-        const pdf = await pdfService.loadDocument(file);
-        setPdfDoc(pdf);
-        setPageCount(pdf.numPages);
-        setCurrentPage(1);
-        setIsDocumentLoaded(true);
-      } catch (err) {
-        console.error('Failed to load PDF:', err);
-        setError(`Failed to load PDF: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        setIsDocumentLoaded(false);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    load();
-  }, [file]);
+    initiateLoad();
+  }, [initiateLoad]);
+
+  const handleRetry = () => {
+    initiateLoad();
+  };
 
   // Render page when currentPage or scale changes - only after document is loaded
   useEffect(() => {
     if (!isDocumentLoaded || !pdfDoc) return;
+
+    let cancelled = false;
+    let renderTask: any | null = null;
+
     async function render() {
       try {
         setIsRendering(true);
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const rendered = await pdfService.renderPage(pdfDoc, currentPage, scale);
-        const context = canvas.getContext('2d')!;
-        
+        const { canvas: renderedCanvas, renderTask: task } = await pdfService.renderPage(pdfDoc, currentPage, scale);
+        renderTask = task;
+
+        try {
+          await renderTask.promise;
+        } catch (taskError: any) {
+          if (taskError?.name === 'RenderingCancelledException') {
+            return;
+          }
+          throw taskError;
+        }
+
+        if (cancelled) return;
+
+        const targetCanvas = canvasRef.current;
+        if (!targetCanvas) return;
+        const context = targetCanvas.getContext('2d');
+        if (!context) return;
+
         // Copy the HiDPI-aware dimensions from the rendered canvas
-        canvas.style.width = rendered.style.width;
-        canvas.style.height = rendered.style.height;
-        canvas.width = rendered.width;
-        canvas.height = rendered.height;
-        
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        context.drawImage(rendered, 0, 0);
-      } catch (err) {
+        targetCanvas.style.width = renderedCanvas.style.width;
+        targetCanvas.style.height = renderedCanvas.style.height;
+        targetCanvas.width = renderedCanvas.width;
+        targetCanvas.height = renderedCanvas.height;
+
+        context.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
+        context.drawImage(renderedCanvas, 0, 0);
+      } catch (err: any) {
+        if (cancelled) return;
+        if (err?.name === 'RenderingCancelledException') {
+          return;
+        }
         console.error('Failed to render page:', err);
         setError(`Failed to render page ${currentPage}: ${err instanceof Error ? err.message : 'Unknown error'}`);
       } finally {
-        setIsRendering(false);
+        if (!cancelled) {
+          setIsRendering(false);
+        }
       }
     }
+
     render();
+
+    return () => {
+      cancelled = true;
+      if (renderTask && typeof renderTask.cancel === 'function') {
+        renderTask.cancel();
+      }
+    };
   }, [currentPage, scale, isDocumentLoaded, pdfDoc]);
 
   const goPrev = () => { if (currentPage > 1) setCurrentPage(currentPage - 1); };
@@ -86,7 +128,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
         <div className="pdf-error">
           <h3>Error Loading PDF</h3>
           <p>{error}</p>
-          <button onClick={() => window.location.reload()}>Reload Page</button>
+          <button onClick={handleRetry}>Reload Document</button>
         </div>
       </div>
     );
