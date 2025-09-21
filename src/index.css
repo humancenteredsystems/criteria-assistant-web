@@ -33,20 +33,3 @@ body {
   flex-direction: column;
 }
 
-.controls {
-  padding: 8px;
-  background-color: #ffffff;
-  border-bottom: 1px solid #ddd;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.viewer-container {
-  flex: 1;
-  overflow: auto;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background-color: #e0e0e0;
-}
