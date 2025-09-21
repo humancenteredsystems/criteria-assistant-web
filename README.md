@@ -6,6 +6,16 @@ Here are the README.md and architecture.md for the web version using Architectur
 
 A modern web application for analyzing and annotating federal facility documents with live keyword highlighting and URL validation.
 
+## ✨ Stable Milestone - Working Highlight Overlay System
+
+**Current Status**: The highlight overlay system is now **fully functional and aligned** at default zoom levels. This represents a stable baseline with:
+- Perfect text-to-highlight alignment using PDF-space coordinate projection
+- Smooth search experience without PDF disappearing issues  
+- Controlled auto-scroll (Next/Prev navigation only)
+- Stable rendering pipeline with no infinite loops
+
+*Reference commit: Stable, functional baseline*
+
 ## 🌐 Live Demo
 
 **Try it now**: [https://criteria-assistant-web.onrender.com/](https://criteria-assistant-web.onrender.com/)
@@ -15,9 +25,11 @@ The live site automatically deploys from the `main` branch and showcases the lat
 ## 🚀 Features
 
 - **Client-Side PDF Rendering**: Fast, responsive PDF viewing powered by PDF.js
-- **Real-Time Text Extraction**: Extract text with precise positioning for accurate annotations  
-- **Live Annotation System**: Highlight keywords, validate URLs, and overlay metadata
-- **Interactive Sidebar**: Toggle annotation categories, view page statistics
+- **PDF-Space Highlight Alignment**: Precise text highlighting that stays aligned at all zoom levels
+- **Real-Time Search**: Live text search with debounced input and projection-based highlighting
+- **Controlled Navigation**: Next/Previous match navigation with smart auto-scroll
+- **Transparent Text Layer**: Hidden geometry layer for accurate text positioning
+- **Debug Validation Tools**: Built-in alignment crosshairs for development verification
 - **Responsive Design**: Works on desktop, tablet, and mobile devices
 - **No Server Dependencies**: Everything runs in the browser for privacy and speed
 

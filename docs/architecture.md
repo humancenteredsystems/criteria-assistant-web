@@ -4,70 +4,97 @@
 
 ## System Overview
 
-A client-side web application that processes PDFs entirely in the browser using PDF.js for rendering and text extraction, with SVG overlay system for annotations.
+A client-side web application that processes PDFs entirely in the browser using PDF.js for rendering and text extraction, with a **PDF-space coordinate projection system** for precise highlight alignment.
 
-## Core Architecture: Client-Side Processing
+## Core Architecture: PDF-Space Projection System
 
 ```
 User Browser
 ├── PDF.js Engine
-│   ├── PDF Rendering → Canvas
-│   ├── Text Extraction → Coordinates + Text
-│   └── Page Navigation → Page Objects
-├── Annotation System  
-│   ├── Keyword Matching → Highlights
-│   ├── URL Validation → Status Indicators
-│   └── SVG Overlays → Visual Annotations
-└── React UI
-    ├── PDF Viewer Component
-    ├── Annotation Panel
-    └── Control Interface
+│   ├── PDF Canvas Rendering → HiDPI Canvas
+│   ├── Text Layer Rendering → Transparent DOM Geometry
+│   └── PDF-Space Coordinates → User Units
+├── Projection System
+│   ├── Coordinate Conversion → PDF Units ↔ CSS Pixels  
+│   ├── Viewport Scaling → Zoom-Independent Alignment
+│   └── Highlight Projection → Positioned DOM Elements
+├── Search & Navigation
+│   ├── Text Matching → Debounced Search (150ms)
+│   ├── Controlled Auto-scroll → Next/Prev Only
+│   └── Match Highlighting → PDF-Space Projection
+└── React Component Tree
+    ├── PDFViewer → Canvas + Layer Management
+    ├── TextLayer → Transparent Geometry
+    ├── HighlightLayer → Search Result Projection
+    └── Debug Tools → Alignment Validation
 ```
+
+## Current Stable State (Milestone)
+
+**Status**: Fully functional highlight overlay system with perfect alignment
+- ✅ PDF-space coordinate authority established
+- ✅ Projection-based highlighting (no DOM reading for geometry)
+- ✅ Stable rendering pipeline (no infinite loops)
+- ✅ Controlled auto-scroll prevents PDF disappearing
+- ✅ Debug validation tools for alignment verification
 
 ## Component Architecture
 
 ### 1. PDF Service Layer (`pdfService.ts`)
-- **PDF.js Wrapper**: Abstracts PDF.js API
-- **Text Extraction**: Gets text with bounding box coordinates
-- **Rendering Pipeline**: Converts PDF pages to canvas
-- **Page Management**: Handles navigation, zoom, pagination
+- **PDF.js Wrapper**: Stateless service abstracting PDF.js API
+- **Text Layer Rendering**: Creates transparent DOM geometry using `renderTextLayer`
+- **PDF-Space Rectangle Caching**: Converts DOM positions to PDF user units
+- **Canvas Rendering**: HiDPI-aware page rendering with proper viewport scaling
 
 ```typescript
 interface PDFService {
-  loadDocument(file: File): Promise<PDFDocument>
-  renderPage(pageNum: number, scale: number): Promise<Canvas>  
-  extractText(pageNum: number): Promise<TextItem[]>
-  getPageCount(): number
+  loadDocument(file: File): Promise<PDFDocumentProxy>
+  renderTextLayer(pdfDoc, pageNum, scale, container): Promise<{textDivs, renderTask}>
+  buildPdfSpaceRects(textDivs: HTMLElement[], viewport): PDFRect[]
 }
 ```
 
-### 2. Annotation System (`annotationService.ts`)
-- **Pattern Matching**: Find keywords/URLs in extracted text
-- **Coordinate Mapping**: Map text matches to page coordinates
-- **Category Management**: Handle annotation types and visibility
-- **Overlay Generation**: Create SVG highlight elements
+### 2. Coordinate Projection System (`coordinateProjection.ts`)
+- **PDF-Space Authority**: All coordinates stored in PDF user units
+- **Viewport Projection**: Converts PDF units to CSS pixels using current scale
+- **Alignment Utilities**: Ensures highlights stay aligned at any zoom level
 
 ```typescript
-interface AnnotationService {
-  findAnnotations(text: TextItem[]): Annotation[]
-  createHighlights(annotations: Annotation[]): SVGElement[]
-  toggleCategory(category: string, visible: boolean): void
+interface ProjectionSystem {
+  cssToPdfRect(cssRect: CSSRect, viewport: PageViewport): PDFRect
+  pdfToCssRect(pdfRect: PDFRect, viewport: PageViewport): CSSRect
+  createValidationCrosshairs(viewport: PageViewport): CSSRect[]
 }
 ```
 
-### 3. React Component Tree
+### 3. Actual React Component Tree
 
 ```
 App
 ├── PDFViewer
-│   ├── PDFCanvas (PDF.js rendering)
-│   ├── AnnotationLayer (SVG overlays)
-│   └── Controls (zoom, navigation)
-├── AnnotationPanel  
-│   ├── CategoryToggles
-│   ├── PageMetadata
-│   └── SearchBox
-└── Header (file upload, menu)
+│   ├── Canvas (PDF.js HiDPI rendering)
+│   ├── TextLayer (transparent geometry + PDF rect caching)
+│   ├── HighlightLayer (projection-based search highlights)
+│   ├── AlignmentValidator (debug crosshairs)
+│   └── Controls (zoom, navigation, debug toggle)
+├── SearchBar (debounced input + Next/Prev navigation)
+└── File Upload Interface
+```
+
+### 4. State Management (`textStore.ts`)
+- **Search State**: Debounced search terms and match indices
+- **PDF Rectangle Cache**: Cached PDF-space coordinates per page
+- **Controlled Navigation**: Next/Prev with auto-scroll, no auto-scroll on typing
+
+```typescript
+interface TextStore {
+  searchTerm: string
+  matchDivIndicesByPage: Record<number, number[]>
+  pdfRectsByPage: Record<number, PDFRect[]>
+  currentMatchIndex: number
+  nextMatch(): void // includes auto-scroll
+  prevMatch(): void // includes auto-scroll
+}
 ```
 
 ## Data Flow
@@ -111,42 +138,75 @@ App
 
 ## Implementation Details
 
-### PDF Rendering Pipeline
-```javascript
-// Load PDF
-const loadingTask = pdfjsLib.getDocument(pdfData)
-const pdf = await loadingTask.promise
+### PDF-Space Coordinate System (Key Innovation)
 
-// Render page
-const page = await pdf.getPage(pageNumber)
-const viewport = page.getViewport({ scale })
-const canvas = document.createElement('canvas')
-const context = canvas.getContext('2d')
-await page.render({ canvasContext: context, viewport })
+The alignment solution uses **PDF user units** as the single source of truth:
+
+```javascript
+// 1. Render transparent text layer with PDF.js
+const { textDivs, renderTask } = await pdfService.renderTextLayer(pdfDoc, pageNum, scale, container)
+await renderTask.promise
+
+// 2. Cache PDF-space rectangles (done once per page/scale)
+const viewport = page.getViewport({ scale, rotation })
+const pdfRects = textDivs.map(div => {
+  const cssRect = extractCssRect(div) // read DOM positions once
+  return cssToPdfRect(cssRect, viewport) // convert to PDF units
+})
+
+// 3. Project to CSS pixels for highlighting (done on every search)
+const cssRect = pdfToCssRect(pdfRect, viewport) // mathematical projection
 ```
 
-### Text Extraction with Coordinates
+### Controlled Rendering Pipeline
 ```javascript
-// Extract text items with positioning
-const textContent = await page.getTextContent()
-const textItems = textContent.items.map(item => ({
-  text: item.str,
-  x: item.transform[4],
-  y: item.transform[5], 
-  width: item.width,
-  height: item.height
-}))
+// Canvas rendering (stable, only on page/zoom changes)
+const dpr = window.devicePixelRatio || 1
+canvas.style.width = `${viewport.width}px`
+canvas.style.height = `${viewport.height}px`
+canvas.width = Math.floor(viewport.width * dpr)
+canvas.height = Math.floor(viewport.height * dpr)
+
+await page.render({
+  canvasContext: context,
+  viewport,
+  transform: [dpr, 0, 0, dpr, 0, 0] // HiDPI scaling
+})
 ```
 
-### SVG Annotation Overlay
+### Search Highlight Projection
 ```javascript
-// Create highlight SVG
-const highlight = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
-highlight.setAttribute('x', textItem.x)
-highlight.setAttribute('y', textItem.y)  
-highlight.setAttribute('width', textItem.width)
-highlight.setAttribute('height', textItem.height)
-highlight.setAttribute('fill', 'rgba(255, 255, 0, 0.3)')
+// No DOM reading - pure mathematical projection
+indices.forEach((divIndex, k) => {
+  const pdfRect = pdfRects[divIndex] // cached PDF coordinates
+  const cssRect = pdfToCssRect(pdfRect, { scale }) // project to current zoom
+  
+  const highlight = document.createElement('div')
+  highlight.style.position = 'absolute'
+  highlight.style.left = `${cssRect.left}px`
+  highlight.style.top = `${cssRect.top}px`
+  highlight.style.width = `${cssRect.width}px`
+  highlight.style.height = `${cssRect.height}px`
+  highlight.style.background = 'rgba(255, 235, 59, 0.45)'
+})
+```
+
+### Alignment Validation System
+```javascript
+// Debug crosshairs at PDF page corners
+const corners = [
+  { x: 0, y: 0 },
+  { x: pageWidth/scale, y: 0 },
+  { x: 0, y: pageHeight/scale },
+  { x: pageWidth/scale, y: pageHeight/scale }
+]
+
+corners.forEach(corner => {
+  const cssRect = pdfToCssRect({
+    x: corner.x, y: corner.y, w: 10/scale, h: 10/scale
+  }, viewport)
+  // Crosshairs should hug canvas corners at all zoom levels
+})
 ```
 
 This architecture provides a scalable, maintainable foundation for the web version while preserving all the functionality of your PyQt application.
