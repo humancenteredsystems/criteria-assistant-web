@@ -8,9 +8,10 @@ import TextLayer from '../TextLayer/TextLayer';
 
 interface PDFViewerProps {
   file: File;
+  overlayOpacity: number;
 }
 
-const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
+const PDFViewer: React.FC<PDFViewerProps> = ({ file, overlayOpacity }) => {
   const pageElRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
@@ -23,7 +24,6 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
   const [error, setError] = useState<string | null>(null); // 🔥 ERROR HANDLING: Add error state
   const [isLoading, setIsLoading] = useState(false); // 🔥 LOADING STATES: Add loading indicator
   const [isRendering, setIsRendering] = useState(false); // 🔥 LOADING STATES: Add rendering indicator
-  const [overlayOpacity, setOverlayOpacity] = useState(100);
 
   const loadDocument = useCallback(async () => {
     try {
@@ -200,20 +200,6 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
   return (
     <div className="pdf-container">
       <nav className="pdf-sidebar">
-        <div className="overlay-opacity-control">
-          <label htmlFor="overlay-opacity">
-            Overlay opacity: <span>{overlayOpacity}%</span>
-          </label>
-          <input
-            id="overlay-opacity"
-            type="range"
-            min={0}
-            max={100}
-            step={10}
-            value={overlayOpacity}
-            onChange={(event) => setOverlayOpacity(Number(event.target.value))}
-          />
-        </div>
         <ul className="pdf-thumbnails">
           {isDocumentLoaded && pageCount > 0 ? (
             Array.from({ length: pageCount }, (_, i) => i + 1).map(page => (

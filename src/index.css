@@ -33,3 +33,29 @@ body {
   flex-direction: column;
 }
 
+.overlay-opacity-control {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 0.875rem;
+  color: #333333;
+}
+
+.overlay-opacity-control label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+}
+
+.overlay-opacity-control input[type="range"] {
+  width: 100%;
+  accent-color: #0070f3;
+  cursor: pointer;
+}
+
+.overlay-opacity-control input[type="range"]:focus-visible {
+  outline: 2px solid #005fcc;
+  outline-offset: 2px;
+}
