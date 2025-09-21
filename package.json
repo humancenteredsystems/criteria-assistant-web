@@ -20,7 +20,8 @@
     "preview": "vite preview",
     "serve": "vite preview --port 4173",
     "type-check": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test": "vitest run"
   },
   "keywords": [
     "pdf",
@@ -52,6 +53,7 @@
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.1",
     "typescript": "^5.9.2",
-    "vite": "^7.1.3"
+    "vite": "^7.1.3",
+    "vitest": "^3.2.4"
   }
 }
