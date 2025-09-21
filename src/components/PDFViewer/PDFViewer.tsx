@@ -139,11 +139,12 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
           {isRendering && (
             <div className="rendering-overlay"><p>Rendering page...</p></div>
           )}
-          <canvas ref={canvasRef} className="pdf-canvas"></canvas>
-          {/* Text layer overlays selectable and highlighted text */}
-          {pdfDoc && (
-            <TextLayer pdfDoc={pdfDoc} pageNum={currentPage} scale={scale} />
-          )}
+          <div className="page">
+            <canvas ref={canvasRef} className="pdf-canvas"></canvas>
+            {pdfDoc && (
+              <TextLayer pdfDoc={pdfDoc} pageNum={currentPage} scale={scale} />
+            )}
+          </div>
         </div>
       </div>
     </div>
