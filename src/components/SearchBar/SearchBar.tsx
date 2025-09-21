@@ -7,14 +7,10 @@ import './SearchBar.css';
  * Allows entering a search term and navigating between matches.
  */
 const SearchBar: React.FC = () => {
-  const {
-    searchTerm,
-    matches,
-    currentMatchIndex,
-    setSearchTerm,
-    nextMatch,
-    prevMatch,
-  } = useTextStore();
+  const { searchTerm, matchDivIndicesByPage, currentMatchIndex, setSearchTerm, nextMatch, prevMatch } = useTextStore();
+
+  const page = (window as any).__currentPdfPage as number || 1;
+  const total = (matchDivIndicesByPage[page] ?? []).length;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
@@ -28,15 +24,15 @@ const SearchBar: React.FC = () => {
         value={searchTerm}
         onChange={handleChange}
       />
-      <button onClick={prevMatch} disabled={matches.length === 0}>
+      <button onClick={prevMatch} disabled={total === 0}>
         Previous
       </button>
       <span className="search-count">
-        {matches.length > 0
-          ? `${currentMatchIndex + 1} of ${matches.length}`
+        {total > 0
+          ? `${currentMatchIndex + 1} of ${total}`
           : '0 of 0'}
       </span>
-      <button onClick={nextMatch} disabled={matches.length === 0}>
+      <button onClick={nextMatch} disabled={total === 0}>
         Next
       </button>
     </div>

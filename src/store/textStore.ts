@@ -1,83 +1,52 @@
-// Zustand store for DOM-based PDF text search
+// src/store/textStore.ts
 import { create } from 'zustand';
 
 interface TextStore {
-  textDivsByPage: Record<number, HTMLElement[]>;
-  currentPage: number | null;
   searchTerm: string;
-  matches: HTMLElement[];
-  currentMatchIndex: number;
-  setTextDivs: (pageNum: number, divs: HTMLElement[]) => void;
+  matchDivIndicesByPage: Record<number, number[]>; // indices into textDivs for that page
+  currentMatchIndex: number;                        // index in the page's list
   setSearchTerm: (term: string) => void;
+  setPageMatches: (page: number, divIndices: number[]) => void;
   nextMatch: () => void;
   prevMatch: () => void;
 }
 
-const useTextStore = create<TextStore>((set: (state: Partial<TextStore> | ((state: TextStore) => Partial<TextStore>)) => void, get: () => TextStore) => ({
-  textDivsByPage: {},
-  currentPage: null,
+const useTextStore = create<TextStore>((set, get) => ({
   searchTerm: '',
-  matches: [],
+  matchDivIndicesByPage: {},
   currentMatchIndex: -1,
 
-  // Store DOM elements for a given page
-  setTextDivs: (pageNum: number, divs: HTMLElement[]) => {
-    set((state: TextStore) => {
-      const updatedDivs = { ...state.textDivsByPage, [pageNum]: divs };
-      const term = state.searchTerm;
-      
-      // Search in current page's DOM elements
-      const matches = term ? divs.filter((div: HTMLElement) => {
-        const text = div.textContent || '';
-        return text.toLowerCase().includes(term.toLowerCase());
-      }) : [];
-      
-      return {
-        textDivsByPage: updatedDivs,
-        currentPage: pageNum,
-        matches,
-        currentMatchIndex: matches.length > 0 ? 0 : -1,
-      };
+  setSearchTerm: (term) => {
+    // just set the term and reset position; TextLayer will compute indices
+    const normalized = term.normalize('NFKC');
+    set({ searchTerm: normalized, currentMatchIndex: 0 });
+  },
+
+  setPageMatches: (page, divIndices) => {
+    const map = { ...get().matchDivIndicesByPage, [page]: divIndices };
+    // clamp active index to available matches for the current page
+    const list = map[page] ?? [];
+    set({
+      matchDivIndicesByPage: map,
+      currentMatchIndex: list.length > 0 ? Math.min(get().currentMatchIndex, list.length - 1) : -1,
     });
   },
 
-  // Update search term and recompute matches on current page
-  setSearchTerm: (term: string) => {
-    set((state: TextStore) => {
-      const page = state.currentPage;
-      const divs = page != null ? state.textDivsByPage[page] || [] : [];
-      
-      const matches = term ? divs.filter((div: HTMLElement) => {
-        const text = div.textContent || '';
-        return text.toLowerCase().includes(term.toLowerCase());
-      }) : [];
-      
-      return {
-        searchTerm: term,
-        matches,
-        currentMatchIndex: matches.length > 0 ? 0 : -1,
-      };
-    });
-  },
-
-  // Go to next match
   nextMatch: () => {
-    set((state: TextStore) => {
-      const count = state.matches.length;
-      if (count === 0) return {};
-      const next = (state.currentMatchIndex + 1) % count;
-      return { currentMatchIndex: next };
-    });
+    const { currentMatchIndex, matchDivIndicesByPage } = get();
+    // caller (TextLayer) ensures current page before invoking navigation UI
+    const page = (window as any).__currentPdfPage as number || 1;
+    const list = matchDivIndicesByPage[page] ?? [];
+    if (list.length === 0) return;
+    set({ currentMatchIndex: (currentMatchIndex + 1) % list.length });
   },
 
-  // Go to previous match
   prevMatch: () => {
-    set((state: TextStore) => {
-      const count = state.matches.length;
-      if (count === 0) return {};
-      const prev = (state.currentMatchIndex - 1 + count) % count;
-      return { currentMatchIndex: prev };
-    });
+    const { currentMatchIndex, matchDivIndicesByPage } = get();
+    const page = (window as any).__currentPdfPage as number || 1;
+    const list = matchDivIndicesByPage[page] ?? [];
+    if (list.length === 0) return;
+    set({ currentMatchIndex: (currentMatchIndex - 1 + list.length) % list.length });
   },
 }));
 

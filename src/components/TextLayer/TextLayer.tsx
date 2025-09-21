@@ -17,7 +17,7 @@ interface TextLayerProps {
 const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [textDivs, setTextDivs] = useState<HTMLElement[]>([]);
-  const { searchTerm, matches, currentMatchIndex, setTextDivs: storeTextDivs } = useTextStore();
+  const { searchTerm, currentMatchIndex, setPageMatches } = useTextStore();
 
   // Render text layer using PDF.js API when page or scale changes
   useEffect(() => {
@@ -27,9 +27,6 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
       try {
         const divs = await pdfService.renderTextLayer(pdfDoc, pageNum, scale, containerRef.current!);
         setTextDivs(divs);
-        
-        // Store DOM elements for search functionality
-        storeTextDivs(pageNum, divs);
       } catch (error) {
         console.error('Failed to render text layer:', error);
         setTextDivs([]);
@@ -37,26 +34,47 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
     };
 
     renderText();
-  }, [pdfDoc, pageNum, scale, storeTextDivs]);
+  }, [pdfDoc, pageNum, scale]);
+
+  // compute matches whenever term, page, scale, or textDivs change
+  useEffect(() => {
+    if (!containerRef.current) return;
+    // expose current page for nav (keeps SearchBar simple)
+    (window as any).__currentPdfPage = pageNum;
+
+    const term = searchTerm.trim().toLowerCase();
+    if (!term || textDivs.length === 0) {
+      setPageMatches(pageNum, []);
+      return;
+    }
+    const indices: number[] = [];
+    for (let i = 0; i < textDivs.length; i++) {
+      const t = (textDivs[i].textContent || '').toLowerCase();
+      if (t.includes(term)) indices.push(i);
+    }
+    setPageMatches(pageNum, indices);
+  }, [searchTerm, pageNum, scale, textDivs, setPageMatches]);
 
   // Auto-scroll active match into view
   useEffect(() => {
-    if (!searchTerm || currentMatchIndex < 0 || matches.length === 0) return;
+    const { matchDivIndicesByPage } = useTextStore.getState();
+    const indices = matchDivIndicesByPage[pageNum] ?? [];
+    
+    if (!searchTerm || currentMatchIndex < 0 || indices.length === 0) return;
 
-    const activeDiv = matches[currentMatchIndex];
+    const activeIndex = indices[currentMatchIndex];
+    const activeDiv = textDivs[activeIndex];
     if (activeDiv) {
       activeDiv.scrollIntoView({ block: 'center', inline: 'center' });
     }
-  }, [currentMatchIndex, searchTerm, matches]);
+  }, [currentMatchIndex, searchTerm, textDivs, pageNum]);
 
   return (
     <>
       <div ref={containerRef} className="text-layer" />
-      <HighlightLayer 
+      <HighlightLayer
         textDivs={textDivs}
-        matches={matches}
-        currentMatchIndex={currentMatchIndex}
-        searchTerm={searchTerm}
+        pageNum={pageNum}
       />
     </>
   );

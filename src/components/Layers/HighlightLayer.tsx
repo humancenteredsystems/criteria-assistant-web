@@ -1,71 +1,41 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import useTextStore from '../../store/textStore';
 
-interface HighlightLayerProps {
-  textDivs: HTMLElement[];
-  matches: HTMLElement[];
-  currentMatchIndex: number;
-  searchTerm: string;
-}
+type Props = { textDivs: HTMLElement[]; pageNum: number; };
 
-/**
- * Renders highlight rectangles over search matches using geometry from PDF.js renderTextLayer
- */
-const HighlightLayer: React.FC<HighlightLayerProps> = ({ 
-  textDivs, 
-  matches, 
-  currentMatchIndex, 
-  searchTerm 
-}) => {
-  if (!searchTerm || matches.length === 0) {
-    return null;
-  }
+const HighlightLayer: React.FC<Props> = ({ textDivs, pageNum }) => {
+  const { searchTerm, matchDivIndicesByPage, currentMatchIndex } = useTextStore();
+  const indices = matchDivIndicesByPage[pageNum] ?? [];
 
-  // Create highlight rectangles from store matches
-  const highlights = matches.map((matchDiv, index) => {
-    const rect = matchDiv.getBoundingClientRect();
-    const container = matchDiv.closest('.text-layer');
-    const containerRect = container?.getBoundingClientRect();
-    
-    if (!containerRect) return null;
-    
-    // Calculate position relative to text layer container
-    const left = rect.left - containerRect.left;
-    const top = rect.top - containerRect.top;
-    
-    const isActive = index === currentMatchIndex;
-    
+  if (!searchTerm.trim() || indices.length === 0 || textDivs.length === 0) return null;
+
+  const container = textDivs[0]?.closest('.text-layer') as HTMLElement | null;
+  const containerRect = container?.getBoundingClientRect();
+  if (!containerRect) return null;
+
+  const nodes = indices.map((i, k) => {
+    const rect = textDivs[i].getBoundingClientRect();
+    const isActive = k === currentMatchIndex;
     return (
       <div
-        key={`highlight-${index}`}
+        key={`hl-${i}`}
         className={`highlight ${isActive ? 'active' : ''}`}
         style={{
           position: 'absolute',
-          left: `${left}px`,
-          top: `${top}px`,
+          left: `${rect.left - containerRect.left}px`,
+          top: `${rect.top - containerRect.top}px`,
           width: `${rect.width}px`,
           height: `${rect.height}px`,
           background: 'rgba(255, 235, 59, 0.45)',
           outline: isActive ? '2px solid #f57c00' : 'none',
           pointerEvents: 'none',
-          zIndex: 2
+          zIndex: 2,
         }}
       />
     );
-  }).filter(Boolean);
+  });
 
-  return (
-    <div 
-      className="highlight-layer"
-      style={{
-        position: 'absolute',
-        inset: 0,
-        pointerEvents: 'none',
-        zIndex: 2
-      }}
-    >
-      {highlights}
-    </div>
-  );
+  return <div className="highlight-layer" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 2 }}>{nodes}</div>;
 };
 
 export default HighlightLayer;
