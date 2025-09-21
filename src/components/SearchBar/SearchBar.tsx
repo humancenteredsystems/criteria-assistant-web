@@ -12,8 +12,12 @@ const SearchBar: React.FC = () => {
   const total = (matchDivIndicesByPage[currentPage] ?? []).length;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log(`SearchBar: Input changed to "${e.target.value}"`);
     setSearchTerm(e.target.value);
   };
+
+  // Debug logging for store state
+  console.log(`SearchBar: Page ${currentPage}, Term: "${searchTerm}", Total: ${total}, CurrentIndex: ${currentMatchIndex}`);
 
   return (
     <div className="search-bar">

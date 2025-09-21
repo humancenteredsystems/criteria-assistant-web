@@ -22,16 +22,29 @@ const useTextStore = create<TextStore>((set, get) => ({
   setSearchTerm: (term) => {
     // just set the term and reset position; TextLayer will compute indices
     const normalized = term.normalize('NFKC');
-    set({ searchTerm: normalized, currentMatchIndex: 0 });
+    set({ searchTerm: normalized, currentMatchIndex: -1 });
   },
 
   setPageMatches: (page, divIndices) => {
     const map = { ...get().matchDivIndicesByPage, [page]: divIndices };
-    // clamp active index to available matches for the current page
+    // set active index to first match if matches exist, otherwise -1
     const list = map[page] ?? [];
+    const currentIndex = get().currentMatchIndex;
+    let newIndex = -1;
+    
+    if (list.length > 0) {
+      // If we had a valid index before, try to keep it within bounds
+      if (currentIndex >= 0 && currentIndex < list.length) {
+        newIndex = currentIndex;
+      } else {
+        // Otherwise, start at first match
+        newIndex = 0;
+      }
+    }
+    
     set({
       matchDivIndicesByPage: map,
-      currentMatchIndex: list.length > 0 ? Math.min(get().currentMatchIndex, list.length - 1) : -1,
+      currentMatchIndex: newIndex,
     });
   },
 

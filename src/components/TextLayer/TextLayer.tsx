@@ -75,12 +75,27 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
     // setCurrentPage must always run
     setCurrentPage(pageNum);
 
+    // Only compute matches if we have textDivs populated
+    if (textDivs.length === 0) {
+      setPageMatches(pageNum, []);
+      return;
+    }
+
     const norm = (s: string) => s.normalize('NFKC').toLowerCase();
     const term = norm(searchTerm.trim());
-    const idx = term
-      ? textDivs.map((el, i) => (norm(el.textContent || '').includes(term) ? i : -1))
-               .filter(i => i >= 0)
-      : [];
+    
+    if (!term) {
+      setPageMatches(pageNum, []);
+      return;
+    }
+
+    const idx = textDivs
+      .map((el, i) => (norm(el.textContent || '').includes(term) ? i : -1))
+      .filter(i => i >= 0);
+    
+    // Debug logging
+    console.log(`TextLayer: Page ${pageNum}, Term: "${term}", TextDivs: ${textDivs.length}, Matches: ${idx.length}`);
+    
     setPageMatches(pageNum, idx);
   }, [textDivs, searchTerm, pageNum, scale, setPageMatches, setCurrentPage]);
 
