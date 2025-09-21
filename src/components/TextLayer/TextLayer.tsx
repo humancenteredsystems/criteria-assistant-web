@@ -21,11 +21,11 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
 
   // Render text layer using PDF.js API when page or scale changes
   useEffect(() => {
-    if (!pdfDoc) return;
-    const el = containerRef.current!;
+    if (!pdfDoc || !containerRef.current) return;
+    
     const run = async () => {
       try {
-        const divs = await pdfService.renderTextLayer(pdfDoc, pageNum, scale, el);
+        const divs = await pdfService.renderTextLayer(pdfDoc, pageNum, scale, containerRef.current!);
         setTextDivs(divs);
       } catch (e) {
         console.error('Failed to render text layer:', e);
