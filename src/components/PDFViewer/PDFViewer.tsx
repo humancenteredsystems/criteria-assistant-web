@@ -23,54 +23,97 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
 
   // Load document on file change
   useEffect(() => {
+    let cancelled = false;
+
     async function load() {
       try {
         setIsLoading(true);
         setIsDocumentLoaded(false);
         setError(null);
         const pdf = await pdfService.loadDocument(file);
+        if (cancelled) return;
         setPdfDoc(pdf);
         setPageCount(pdf.numPages);
         setCurrentPage(1);
         setIsDocumentLoaded(true);
       } catch (err) {
+        if (cancelled) return;
         console.error('Failed to load PDF:', err);
         setError(`Failed to load PDF: ${err instanceof Error ? err.message : 'Unknown error'}`);
         setIsDocumentLoaded(false);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
     }
+
     load();
+
+    return () => {
+      cancelled = true;
+    };
   }, [file]);
 
   // Render page when currentPage or scale changes - only after document is loaded
   useEffect(() => {
     if (!isDocumentLoaded || !pdfDoc) return;
+
+    let cancelled = false;
+    let renderTask: any | null = null;
+
     async function render() {
       try {
         setIsRendering(true);
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const rendered = await pdfService.renderPage(pdfDoc, currentPage, scale);
-        const context = canvas.getContext('2d')!;
-        
+        const { canvas: renderedCanvas, renderTask: task } = await pdfService.renderPage(pdfDoc, currentPage, scale);
+        renderTask = task;
+
+        try {
+          await renderTask.promise;
+        } catch (taskError: any) {
+          if (taskError?.name === 'RenderingCancelledException') {
+            return;
+          }
+          throw taskError;
+        }
+
+        if (cancelled) return;
+
+        const targetCanvas = canvasRef.current;
+        if (!targetCanvas) return;
+        const context = targetCanvas.getContext('2d');
+        if (!context) return;
+
         // Copy the HiDPI-aware dimensions from the rendered canvas
-        canvas.style.width = rendered.style.width;
-        canvas.style.height = rendered.style.height;
-        canvas.width = rendered.width;
-        canvas.height = rendered.height;
-        
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        context.drawImage(rendered, 0, 0);
-      } catch (err) {
+        targetCanvas.style.width = renderedCanvas.style.width;
+        targetCanvas.style.height = renderedCanvas.style.height;
+        targetCanvas.width = renderedCanvas.width;
+        targetCanvas.height = renderedCanvas.height;
+
+        context.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
+        context.drawImage(renderedCanvas, 0, 0);
+      } catch (err: any) {
+        if (cancelled) return;
+        if (err?.name === 'RenderingCancelledException') {
+          return;
+        }
         console.error('Failed to render page:', err);
         setError(`Failed to render page ${currentPage}: ${err instanceof Error ? err.message : 'Unknown error'}`);
       } finally {
-        setIsRendering(false);
+        if (!cancelled) {
+          setIsRendering(false);
+        }
       }
     }
+
     render();
+
+    return () => {
+      cancelled = true;
+      if (renderTask && typeof renderTask.cancel === 'function') {
+        renderTask.cancel();
+      }
+    };
   }, [currentPage, scale, isDocumentLoaded, pdfDoc]);
 
   const goPrev = () => { if (currentPage > 1) setCurrentPage(currentPage - 1); };

@@ -26,7 +26,11 @@ export class PDFService {
   }
 
   // Render a specific page to a canvas at the given scale with HiDPI support
-  async renderPage(pdfDoc: any, pageNum: number, scale: number): Promise<HTMLCanvasElement> {
+  async renderPage(
+    pdfDoc: any,
+    pageNum: number,
+    scale: number
+  ): Promise<{ canvas: HTMLCanvasElement; renderTask: any }> {
     if (!pdfDoc) {
       throw new Error('PDF document not provided');
     }
@@ -43,13 +47,13 @@ export class PDFService {
     canvas.width = Math.floor(viewport.width * dpr);
     canvas.height = Math.floor(viewport.height * dpr);
     
-    await page.render({
+    const renderTask = page.render({
       canvasContext: context,
       viewport,
       transform: [dpr, 0, 0, dpr, 0, 0]
-    }).promise;
-    
-    return canvas;
+    });
+
+    return { canvas, renderTask };
   }
 
   // Extract text items with positioning for annotations
@@ -72,7 +76,12 @@ export class PDFService {
   }
 
   // Render text layer using PDF.js renderTextLayer API for proper alignment
-  async renderTextLayer(pdfDoc: any, pageNum: number, scale: number, container: HTMLElement): Promise<HTMLElement[]> {
+  async renderTextLayer(
+    pdfDoc: any,
+    pageNum: number,
+    scale: number,
+    container: HTMLElement
+  ): Promise<{ textDivs: HTMLElement[]; renderTask: any }> {
     if (!pdfDoc) {
       throw new Error('PDF document not provided');
     }
@@ -86,14 +95,14 @@ export class PDFService {
     container.style.height = `${viewport.height}px`;
     
     const textDivs: HTMLElement[] = [];
-    await (pdfjsLib as any).renderTextLayer({
+    const renderTask = (pdfjsLib as any).renderTextLayer({
       textContent,
       container,
       viewport,
       textDivs
     });
-    
-    return textDivs;
+
+    return { textDivs, renderTask };
   }
 }
 
