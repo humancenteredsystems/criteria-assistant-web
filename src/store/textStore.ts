@@ -31,18 +31,16 @@ const useTextStore = create<TextStore>((set, get) => ({
 
   setPageMatches: (page, divIndices) => {
     const map = { ...get().matchDivIndicesByPage, [page]: divIndices };
-    // set active index to first match if matches exist, otherwise -1
+    // Keep currentMatchIndex = -1 until user explicitly navigates with Next/Prev
+    // This prevents auto-scroll while typing
     const list = map[page] ?? [];
     const currentIndex = get().currentMatchIndex;
     let newIndex = -1;
     
-    if (list.length > 0) {
-      // If we had a valid index before, try to keep it within bounds
-      if (currentIndex >= 0 && currentIndex < list.length) {
+    if (list.length > 0 && currentIndex >= 0) {
+      // Only preserve index if it's still valid, don't auto-set to 0
+      if (currentIndex < list.length) {
         newIndex = currentIndex;
-      } else {
-        // Otherwise, start at first match
-        newIndex = 0;
       }
     }
     
@@ -64,14 +62,42 @@ const useTextStore = create<TextStore>((set, get) => ({
     const { currentMatchIndex, matchDivIndicesByPage, currentPage } = get();
     const list = matchDivIndicesByPage[currentPage] ?? [];
     if (list.length === 0) return;
-    set({ currentMatchIndex: (currentMatchIndex + 1) % list.length });
+    
+    const newIndex = currentMatchIndex < 0 ? 0 : (currentMatchIndex + 1) % list.length;
+    set({ currentMatchIndex: newIndex });
+    
+    // Auto-scroll to the active match
+    setTimeout(() => {
+      const textLayerEl = document.querySelector(`[data-page="${currentPage}"] .textLayer`) as HTMLElement;
+      if (textLayerEl) {
+        const textDivs = Array.from(textLayerEl.children) as HTMLElement[];
+        const activeDiv = textDivs[list[newIndex]];
+        if (activeDiv) {
+          activeDiv.scrollIntoView({ block: 'center', inline: 'center' });
+        }
+      }
+    }, 0);
   },
 
   prevMatch: () => {
     const { currentMatchIndex, matchDivIndicesByPage, currentPage } = get();
     const list = matchDivIndicesByPage[currentPage] ?? [];
     if (list.length === 0) return;
-    set({ currentMatchIndex: (currentMatchIndex - 1 + list.length) % list.length });
+    
+    const newIndex = currentMatchIndex < 0 ? list.length - 1 : (currentMatchIndex - 1 + list.length) % list.length;
+    set({ currentMatchIndex: newIndex });
+    
+    // Auto-scroll to the active match
+    setTimeout(() => {
+      const textLayerEl = document.querySelector(`[data-page="${currentPage}"] .textLayer`) as HTMLElement;
+      if (textLayerEl) {
+        const textDivs = Array.from(textLayerEl.children) as HTMLElement[];
+        const activeDiv = textDivs[list[newIndex]];
+        if (activeDiv) {
+          activeDiv.scrollIntoView({ block: 'center', inline: 'center' });
+        }
+      }
+    }, 0);
   },
 }));
 

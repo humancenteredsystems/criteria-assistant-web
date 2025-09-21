@@ -55,7 +55,8 @@
   flex: 1;
   overflow: auto;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
+  align-items: flex-start;
   background-color: #e0e0e0;
 }
 

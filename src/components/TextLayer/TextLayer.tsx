@@ -116,19 +116,8 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale, textLayer
     setPageMatches(pageNum, idx);
   }, [textDivs, searchTerm, pageNum, setPageMatches]);
 
-  // Auto-scroll active match into view
-  useEffect(() => {
-    const { matchDivIndicesByPage } = useTextStore.getState();
-    const indices = matchDivIndicesByPage[pageNum] ?? [];
-    
-    if (!searchTerm || currentMatchIndex < 0 || indices.length === 0) return;
-
-    const activeIndex = indices[currentMatchIndex];
-    const activeDiv = textDivs[activeIndex];
-    if (activeDiv) {
-      activeDiv.scrollIntoView({ block: 'center', inline: 'center' });
-    }
-  }, [currentMatchIndex, searchTerm, textDivs, pageNum]);
+  // Auto-scroll is now handled only by Next/Prev buttons, not on search term changes
+  // This prevents the page from being scrolled out of view while typing
 
   return (
     <HighlightLayer
