@@ -67,10 +67,17 @@ src/
 
 ## 💻 Development
 
-**Start dev server**: `npm run dev`  
-**Run tests**: `npm test`  
-**Type checking**: `npm run type-check`  
+**Start dev server**: `npm run dev`
+**Run tests**: `npm test`
+**Watch tests**: `npm run test:watch`
+**Type checking**: `npm run type-check`
 **Linting**: `npm run lint`
+
+## 🧪 Testing Workflow
+
+- `npm test` executes the Vitest suite once using a jsdom browser-like environment.
+- `npm run test:watch` keeps Vitest running in watch mode for faster local feedback.
+- Test helpers from React Testing Library are globally enhanced through `src/setupTests.ts`, which Vitest loads automatically to register the `@testing-library/jest-dom` matchers.
 
 ## 📊 Data Sources
 
