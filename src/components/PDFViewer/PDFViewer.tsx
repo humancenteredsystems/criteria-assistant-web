@@ -11,7 +11,10 @@ interface PDFViewerProps {
 }
 
 const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
+  const pageElRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const textLayerRef = useRef<HTMLDivElement>(null);
+  const hlLayerRef = useRef<HTMLDivElement>(null);
   const [pageCount, setPageCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [scale, setScale] = useState(1.0);
@@ -64,8 +67,41 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
     async function render() {
       try {
         setIsRendering(true);
-        const { canvas: renderedCanvas, renderTask: task } = await pdfService.renderPage(pdfDoc, currentPage, scale);
-        renderTask = task;
+        
+        // Get page and viewport for coordinate system setup
+        const page = await pdfDoc.getPage(currentPage);
+        const rotation = page.rotate || 0;
+        const viewport = page.getViewport({ scale, rotation });
+        
+        // Lock the page wrapper to the PDF viewport size
+        const pageEl = pageElRef.current;
+        const canvas = canvasRef.current;
+        const textLayerEl = textLayerRef.current;
+        const hlLayerEl = hlLayerRef.current;
+        
+        if (!pageEl || !canvas || !textLayerEl || !hlLayerEl) return;
+        
+        // Set page wrapper dimensions to match viewport
+        pageEl.style.position = 'relative';
+        pageEl.style.width = `${viewport.width}px`;
+        pageEl.style.height = `${viewport.height}px`;
+        
+        // Set up canvas with HiDPI support
+        const dpr = window.devicePixelRatio || 1;
+        canvas.style.width = `${viewport.width}px`;
+        canvas.style.height = `${viewport.height}px`;
+        canvas.width = Math.floor(viewport.width * dpr);
+        canvas.height = Math.floor(viewport.height * dpr);
+        
+        // Render canvas
+        const context = canvas.getContext('2d');
+        if (!context) return;
+        
+        renderTask = page.render({
+          canvasContext: context,
+          viewport,
+          transform: [dpr, 0, 0, dpr, 0, 0]
+        });
 
         try {
           await renderTask.promise;
@@ -77,20 +113,21 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
         }
 
         if (cancelled) return;
-
-        const targetCanvas = canvasRef.current;
-        if (!targetCanvas) return;
-        const context = targetCanvas.getContext('2d');
-        if (!context) return;
-
-        // Copy the HiDPI-aware dimensions from the rendered canvas
-        targetCanvas.style.width = renderedCanvas.style.width;
-        targetCanvas.style.height = renderedCanvas.style.height;
-        targetCanvas.width = renderedCanvas.width;
-        targetCanvas.height = renderedCanvas.height;
-
-        context.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
-        context.drawImage(renderedCanvas, 0, 0);
+        
+        // Set up text layer positioning
+        textLayerEl.style.position = 'absolute';
+        textLayerEl.style.left = '0';
+        textLayerEl.style.top = '0';
+        textLayerEl.style.width = `${viewport.width}px`;
+        textLayerEl.style.height = `${viewport.height}px`;
+        
+        // Set up highlight layer positioning
+        hlLayerEl.style.position = 'absolute';
+        hlLayerEl.style.left = '0';
+        hlLayerEl.style.top = '0';
+        hlLayerEl.style.width = `${viewport.width}px`;
+        hlLayerEl.style.height = `${viewport.height}px`;
+        
       } catch (err: any) {
         if (cancelled) return;
         if (err?.name === 'RenderingCancelledException') {
@@ -181,10 +218,18 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
           {isRendering && (
             <div className="rendering-overlay"><p>Rendering page...</p></div>
           )}
-          <div className="page">
+          <div className="page" data-page={currentPage} ref={pageElRef}>
             <canvas ref={canvasRef} className="pdf-canvas"></canvas>
+            <div className="textLayer" data-page={currentPage} ref={textLayerRef}></div>
+            <div className="highlightLayer" data-page={currentPage} ref={hlLayerRef}></div>
             {pdfDoc && (
-              <TextLayer pdfDoc={pdfDoc} pageNum={currentPage} scale={scale} />
+              <TextLayer 
+                pdfDoc={pdfDoc} 
+                pageNum={currentPage} 
+                scale={scale}
+                textLayerRef={textLayerRef}
+                hlLayerRef={hlLayerRef}
+              />
             )}
           </div>
         </div>

@@ -1,34 +1,34 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import useTextStore from '../../store/textStore';
 import pdfService from '../../services/pdfService';
 import HighlightLayer from '../Layers/HighlightLayer';
-import './TextLayer.css';
 
 interface TextLayerProps {
   pdfDoc: any;
   pageNum: number;
   scale: number;
+  textLayerRef: React.RefObject<HTMLDivElement | null>;
+  hlLayerRef: React.RefObject<HTMLDivElement | null>;
 }
 
 /**
  * Renders transparent text geometry using PDF.js renderTextLayer API for proper alignment.
  * Overlays highlight rectangles for search matches.
  */
-const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
+const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale, textLayerRef, hlLayerRef }) => {
   const [textDivs, setTextDivs] = useState<HTMLElement[]>([]);
   const { searchTerm, currentMatchIndex, setPageMatches, setCurrentPage } = useTextStore();
 
   // Render text layer using PDF.js API when page or scale changes
   useEffect(() => {
-    if (!pdfDoc || !containerRef.current) return;
+    if (!pdfDoc || !textLayerRef.current) return;
 
     let cancelled = false;
     let renderTask: any | null = null;
 
     const run = async () => {
       try {
-        const container = containerRef.current;
+        const container = textLayerRef.current;
         if (!container) return;
 
         const { textDivs: divs, renderTask: task } = await pdfService.renderTextLayer(
@@ -68,7 +68,7 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
         renderTask.cancel();
       }
     };
-  }, [pdfDoc, pageNum, scale]);
+  }, [pdfDoc, pageNum, scale, textLayerRef]);
 
   // compute matches whenever term, page, scale, or textDivs change
   useEffect(() => {
@@ -114,13 +114,12 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
   }, [currentMatchIndex, searchTerm, textDivs, pageNum]);
 
   return (
-    <>
-      <div ref={containerRef} className="text-layer" />
-      <HighlightLayer
-        textDivs={textDivs}
-        pageNum={pageNum}
-      />
-    </>
+    <HighlightLayer
+      textDivs={textDivs}
+      pageNum={pageNum}
+      textLayerRef={textLayerRef}
+      hlLayerRef={hlLayerRef}
+    />
   );
 };
 
