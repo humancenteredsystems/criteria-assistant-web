@@ -75,7 +75,7 @@ export class PDFService {
     });
   }
 
-  // Render text layer using official PDF.js renderTextLayer API
+  // Render text layer using PDF.js v5.x compatible approach
   async renderTextLayer(
     pdfDoc: any,
     pageNum: number,
@@ -100,16 +100,58 @@ export class PDFService {
     
     const textDivs: HTMLElement[] = [];
     
-    // Use official PDF.js renderTextLayer API
-    const renderTask = (pdfjsLib as any).renderTextLayer({
-      textContent,
-      container,
-      viewport,
-      textDivs,
-    });
+    // Check if renderTextLayer is available in PDF.js v5.x
+    const renderTextLayerFn = (pdfjsLib as any).renderTextLayer;
+    
+    if (renderTextLayerFn && typeof renderTextLayerFn === 'function') {
+      // Use official PDF.js renderTextLayer API if available
+      console.log(`PDFService: Using official renderTextLayer for page ${pageNum}`);
+      const renderTask = renderTextLayerFn({
+        textContent,
+        container,
+        viewport,
+        textDivs,
+      });
+      return { textDivs, renderTask };
+    } else {
+      // Fallback: Use enhanced manual text layer creation with proper alignment
+      console.log(`PDFService: Using enhanced manual text layer for page ${pageNum}`);
+      
+      textContent.items.forEach((item: any, index: number) => {
+        const div = document.createElement('div');
+        div.textContent = item.str;
+        
+        // Use PDF.js transform matrix for positioning
+        const transform = item.transform;
+        const x = transform[4];
+        const y = transform[5];
+        
+        // Convert PDF coordinates to CSS coordinates (PDF origin is bottom-left, CSS is top-left)
+        const cssX = x;
+        const cssY = viewport.height - y - (item.height || 12); // Subtract item height for proper alignment
+        
+        div.style.position = 'absolute';
+        div.style.left = `${cssX}px`;
+        div.style.top = `${cssY}px`;
+        div.style.fontSize = `${item.height || 12}px`;
+        div.style.fontFamily = item.fontName || 'sans-serif';
+        div.style.whiteSpace = 'pre';
+        div.style.pointerEvents = 'none';
+        div.style.userSelect = 'none';
+        
+        container.appendChild(div);
+        textDivs.push(div);
+      });
+      
+      // Create a mock render task that resolves immediately
+      const mockRenderTask = {
+        promise: Promise.resolve(),
+        cancel: () => {}
+      };
 
-    console.log(`PDFService: Using official renderTextLayer for page ${pageNum}, viewport: ${viewport.width}x${viewport.height}`);
-    return { textDivs, renderTask };
+      console.log(`PDFService: Created ${textDivs.length} text divs for page ${pageNum}`);
+      return { textDivs, renderTask: mockRenderTask };
+    }
   }
 }
 
