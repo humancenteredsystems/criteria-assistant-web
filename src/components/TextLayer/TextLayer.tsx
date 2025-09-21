@@ -1,8 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import useTextStore from '../../store/textStore';
 import pdfService from '../../services/pdfService';
 import HighlightLayer from '../Layers/HighlightLayer';
 import './TextLayer.css';
+
+import type { HighlightGeometry } from '../Layers/HighlightLayer';
 
 interface TextLayerProps {
   pdfDoc: any;
@@ -16,8 +18,17 @@ interface TextLayerProps {
  */
 const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [textDivs, setTextDivs] = useState<HTMLElement[]>([]);
-  const { searchTerm, currentMatchIndex, setPageMatches, setCurrentPage } = useTextStore();
+  const textDivsRef = useRef<HTMLElement[]>([]);
+  const [textLayerVersion, setTextLayerVersion] = useState(0);
+  const [highlights, setHighlights] = useState<HighlightGeometry[]>([]);
+  const {
+    searchTerm,
+    currentMatchIndex,
+    matchDivIndicesByPage,
+    setPageMatches,
+    setCurrentPage,
+  } = useTextStore();
+  const pageMatchIndices = matchDivIndicesByPage[pageNum] ?? [];
 
   // Render text layer using PDF.js API when page or scale changes
   useEffect(() => {
@@ -26,49 +37,86 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
     const run = async () => {
       try {
         const divs = await pdfService.renderTextLayer(pdfDoc, pageNum, scale, containerRef.current!);
-        setTextDivs(divs);
+        textDivsRef.current = divs;
+        setTextLayerVersion((v) => v + 1);
       } catch (e) {
         console.error('Failed to render text layer:', e);
-        setTextDivs([]);
+        textDivsRef.current = [];
+        setTextLayerVersion((v) => v + 1);
       }
     };
     run();
   }, [pdfDoc, pageNum, scale]);
 
-  // compute matches whenever term, page, scale, or textDivs change
   useEffect(() => {
-    // setCurrentPage must always run
     setCurrentPage(pageNum);
+  }, [pageNum, setCurrentPage]);
 
+  // compute matches whenever term, page, scale, or rendered text layer changes
+  useEffect(() => {
     const norm = (s: string) => s.normalize('NFKC').toLowerCase();
     const term = norm(searchTerm.trim());
-    const idx = term
-      ? textDivs.map((el, i) => (norm(el.textContent || '').includes(term) ? i : -1))
-               .filter(i => i >= 0)
+    const divs = textDivsRef.current;
+    const indices = term
+      ? divs
+          .map((el, i) => (norm(el.textContent || '').includes(term) ? i : -1))
+          .filter((i) => i >= 0)
       : [];
-    setPageMatches(pageNum, idx);
-  }, [textDivs, searchTerm, pageNum, scale, setPageMatches, setCurrentPage]);
+    setPageMatches(pageNum, indices);
+  }, [searchTerm, pageNum, scale, setPageMatches, textLayerVersion]);
 
   // Auto-scroll active match into view
   useEffect(() => {
     const { matchDivIndicesByPage } = useTextStore.getState();
     const indices = matchDivIndicesByPage[pageNum] ?? [];
-    
+
     if (!searchTerm || currentMatchIndex < 0 || indices.length === 0) return;
 
     const activeIndex = indices[currentMatchIndex];
-    const activeDiv = textDivs[activeIndex];
+    const activeDiv = textDivsRef.current[activeIndex];
     if (activeDiv) {
       activeDiv.scrollIntoView({ block: 'center', inline: 'center' });
     }
-  }, [currentMatchIndex, searchTerm, textDivs, pageNum]);
+  }, [currentMatchIndex, searchTerm, pageNum, textLayerVersion]);
+
+  useLayoutEffect(() => {
+    if (!containerRef.current || !searchTerm.trim()) {
+      setHighlights([]);
+      return;
+    }
+
+    const containerRect = containerRef.current.getBoundingClientRect();
+    if (!pageMatchIndices.length) {
+      setHighlights([]);
+      return;
+    }
+
+    const nextHighlights: HighlightGeometry[] = [];
+
+    pageMatchIndices.forEach((divIndex, order) => {
+      const div = textDivsRef.current[divIndex];
+      if (!div) return;
+      const rect = div.getBoundingClientRect();
+      nextHighlights.push({
+        id: `hl-${pageNum}-${divIndex}`,
+        rect: {
+          left: rect.left - containerRect.left,
+          top: rect.top - containerRect.top,
+          width: rect.width,
+          height: rect.height,
+        },
+        isActive: order === currentMatchIndex,
+      });
+    });
+
+    setHighlights(nextHighlights);
+  }, [currentMatchIndex, pageMatchIndices, pageNum, searchTerm, textLayerVersion]);
 
   return (
     <>
       <div ref={containerRef} className="text-layer" />
       <HighlightLayer
-        textDivs={textDivs}
-        pageNum={pageNum}
+        highlights={highlights}
       />
     </>
   );
