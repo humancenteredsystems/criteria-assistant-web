@@ -23,6 +23,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
   const [error, setError] = useState<string | null>(null); // 🔥 ERROR HANDLING: Add error state
   const [isLoading, setIsLoading] = useState(false); // 🔥 LOADING STATES: Add loading indicator
   const [isRendering, setIsRendering] = useState(false); // 🔥 LOADING STATES: Add rendering indicator
+  const [overlayOpacity, setOverlayOpacity] = useState(100);
 
   const loadDocument = useCallback(async () => {
     try {
@@ -152,6 +153,20 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
     };
   }, [currentPage, scale, isDocumentLoaded, pdfDoc]);
 
+  useEffect(() => {
+    const textLayerEl = textLayerRef.current;
+    const hlLayerEl = hlLayerRef.current;
+    const opacityValue = overlayOpacity / 100;
+
+    if (textLayerEl) {
+      textLayerEl.style.opacity = `${opacityValue}`;
+    }
+
+    if (hlLayerEl) {
+      hlLayerEl.style.opacity = `${opacityValue}`;
+    }
+  }, [overlayOpacity, currentPage, isDocumentLoaded]);
+
   const goPrev = () => { if (currentPage > 1) setCurrentPage(currentPage - 1); };
   const goNext = () => { if (currentPage < pageCount) setCurrentPage(currentPage + 1); };
   const zoomIn = () => setScale(scale + 0.25);
@@ -185,6 +200,20 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
   return (
     <div className="pdf-container">
       <nav className="pdf-sidebar">
+        <div className="overlay-opacity-control">
+          <label htmlFor="overlay-opacity">
+            Overlay opacity: <span>{overlayOpacity}%</span>
+          </label>
+          <input
+            id="overlay-opacity"
+            type="range"
+            min={0}
+            max={100}
+            step={10}
+            value={overlayOpacity}
+            onChange={(event) => setOverlayOpacity(Number(event.target.value))}
+          />
+        </div>
         <ul className="pdf-thumbnails">
           {isDocumentLoaded && pageCount > 0 ? (
             Array.from({ length: pageCount }, (_, i) => i + 1).map(page => (
