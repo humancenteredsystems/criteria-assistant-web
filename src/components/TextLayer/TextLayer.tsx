@@ -17,7 +17,7 @@ interface TextLayerProps {
  */
 const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale, textLayerRef, hlLayerRef }) => {
   const [textDivs, setTextDivs] = useState<HTMLElement[]>([]);
-  const { searchTerm, currentMatchIndex, setPageMatches, setCurrentPage } = useTextStore();
+  const { searchTerm, currentMatchIndex, setPageMatches, setCurrentPage, setPdfRects } = useTextStore();
 
   // Render text layer using PDF.js API when page or scale changes
   useEffect(() => {
@@ -51,6 +51,20 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale, textLayer
         if (cancelled) return;
 
         setTextDivs([...divs]);
+        
+        // Cache PDF-space rectangles after text layer rendering
+        // This is done once per page/scale to enable projection-based highlighting
+        if (divs.length > 0) {
+          try {
+            const page = await pdfDoc.getPage(pageNum);
+            const viewport = page.getViewport({ scale, rotation: page.rotate || 0 });
+            const pdfRects = pdfService.buildPdfSpaceRects(divs, viewport);
+            setPdfRects(pageNum, pdfRects);
+            console.log(`TextLayer: Cached ${pdfRects.length} PDF rects for page ${pageNum}`);
+          } catch (error) {
+            console.error('Failed to cache PDF rects:', error);
+          }
+        }
       } catch (e: any) {
         if (cancelled) return;
         if (e?.name === 'RenderingCancelledException') {
@@ -117,6 +131,7 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale, textLayer
     <HighlightLayer
       textDivs={textDivs}
       pageNum={pageNum}
+      scale={scale}
       textLayerRef={textLayerRef}
       hlLayerRef={hlLayerRef}
     />

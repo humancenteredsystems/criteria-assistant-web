@@ -1,61 +1,56 @@
 import React from 'react';
 import useTextStore from '../../store/textStore';
+import { pdfToCssRect } from '../../utils/coordinateProjection';
 
 type Props = { 
   textDivs: HTMLElement[]; 
   pageNum: number;
+  scale: number;
   textLayerRef: React.RefObject<HTMLDivElement | null>;
   hlLayerRef: React.RefObject<HTMLDivElement | null>;
 };
 
-const HighlightLayer: React.FC<Props> = ({ textDivs, pageNum, textLayerRef, hlLayerRef }) => {
-  const { searchTerm, matchDivIndicesByPage, currentMatchIndex } = useTextStore();
+const HighlightLayer: React.FC<Props> = ({ textDivs, pageNum, scale, textLayerRef, hlLayerRef }) => {
+  const { searchTerm, matchDivIndicesByPage, currentMatchIndex, pdfRectsByPage } = useTextStore();
   const indices = matchDivIndicesByPage[pageNum] ?? [];
+  const pdfRects = pdfRectsByPage[pageNum] ?? [];
 
-  // Render highlights directly into the highlight layer element
+  // Render highlights using PDF-space projection (no DOM reading)
   React.useEffect(() => {
     const hlLayerEl = hlLayerRef.current;
-    const textLayerEl = textLayerRef.current;
     
-    if (!hlLayerEl || !textLayerEl) return;
+    if (!hlLayerEl) return;
     
     // Clear existing highlights
     hlLayerEl.innerHTML = '';
     
-    if (!searchTerm.trim() || indices.length === 0 || textDivs.length === 0) return;
+    if (!searchTerm.trim() || indices.length === 0 || pdfRects.length === 0) return;
 
-    // Compute highlight rectangles using the same page's text layer
-    const base = textLayerEl.getBoundingClientRect();
-    const rects = indices.map(i => {
-      const textDiv = textDivs[i];
-      const r = textDiv.getBoundingClientRect();
-      return { 
-        left: r.left - base.left, 
-        top: r.top - base.top, 
-        width: r.width, 
-        height: r.height,
-        index: i
-      };
-    });
-
-    // Render the boxes into that page's hlLayerEl
-    rects.forEach((rect, k) => {
+    // Project PDF-space rectangles to CSS pixels using current scale
+    const viewport = { width: 0, height: 0, scale }; // width/height not needed for projection
+    
+    indices.forEach((divIndex, k) => {
+      if (divIndex >= pdfRects.length) return;
+      
+      const pdfRect = pdfRects[divIndex];
+      const cssRect = pdfToCssRect(pdfRect, viewport);
+      
       const isActive = k === currentMatchIndex;
       const div = document.createElement('div');
       div.className = isActive ? 'highlight active' : 'highlight';
       Object.assign(div.style, {
         position: 'absolute',
-        left: `${rect.left}px`,
-        top: `${rect.top}px`,
-        width: `${rect.width}px`,
-        height: `${rect.height}px`,
+        left: `${cssRect.left}px`,
+        top: `${cssRect.top}px`,
+        width: `${cssRect.width}px`,
+        height: `${cssRect.height}px`,
         background: 'rgba(255, 235, 59, 0.45)',
         outline: isActive ? '2px solid #f57c00' : 'none',
         pointerEvents: 'none',
       });
       hlLayerEl.appendChild(div);
     });
-  }, [textDivs, pageNum, searchTerm, indices, currentMatchIndex, textLayerRef, hlLayerRef]);
+  }, [pageNum, scale, searchTerm, indices, currentMatchIndex, pdfRects]);
 
   return null; // Highlights are rendered directly into the DOM element
 };

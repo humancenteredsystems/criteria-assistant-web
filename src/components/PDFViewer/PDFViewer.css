@@ -62,36 +62,28 @@
 .page {
   position: relative;
   display: block;
-  padding: 0;
-  border: 0;
-  box-sizing: content-box;
 }
 
 .pdf-canvas {
-  display: block;
   position: relative;
+  display: block;
   z-index: 0;
-  padding: 0;
-  border: 0;
-  box-sizing: content-box;
 }
 
 .textLayer {
   position: absolute;
+  left: 0;
+  top: 0;
   z-index: 1;
   pointer-events: none;
-  padding: 0;
-  border: 0;
-  box-sizing: content-box;
 }
 
 .highlightLayer {
   position: absolute;
+  left: 0;
+  top: 0;
   z-index: 2;
   pointer-events: none;
-  padding: 0;
-  border: 0;
-  box-sizing: content-box;
 }
 
 .annotation-layer {

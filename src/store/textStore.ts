@@ -1,13 +1,16 @@
 // src/store/textStore.ts
 import { create } from 'zustand';
+import { PDFRect } from '../utils/coordinateProjection';
 
 interface TextStore {
   searchTerm: string;
   matchDivIndicesByPage: Record<number, number[]>; // indices into textDivs for that page
+  pdfRectsByPage: Record<number, PDFRect[]>;       // PDF-space rectangles cached per page
   currentMatchIndex: number;                        // index in the page's list
   currentPage: number;                              // current page number
   setSearchTerm: (term: string) => void;
   setPageMatches: (page: number, divIndices: number[]) => void;
+  setPdfRects: (page: number, rects: PDFRect[]) => void;
   setCurrentPage: (page: number) => void;
   nextMatch: () => void;
   prevMatch: () => void;
@@ -16,6 +19,7 @@ interface TextStore {
 const useTextStore = create<TextStore>((set, get) => ({
   searchTerm: '',
   matchDivIndicesByPage: {},
+  pdfRectsByPage: {},
   currentMatchIndex: -1,
   currentPage: 1,
 
@@ -46,6 +50,10 @@ const useTextStore = create<TextStore>((set, get) => ({
       matchDivIndicesByPage: map,
       currentMatchIndex: newIndex,
     });
+  },
+
+  setPdfRects: (page, rects) => {
+    set({ pdfRectsByPage: { ...get().pdfRectsByPage, [page]: rects } });
   },
 
   setCurrentPage: (page) => {

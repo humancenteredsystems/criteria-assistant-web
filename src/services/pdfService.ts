@@ -26,6 +26,7 @@ try {
 }
 
 import { TextItem } from '../types/text';
+import { PDFRect, extractCssRect, cssToPdfRect, PageViewport as ProjectionViewport } from '../utils/coordinateProjection';
 
 // PDF.js v5.x type definitions
 interface PDFDocumentProxy {
@@ -253,6 +254,21 @@ export class PDFService {
 
     console.log(`PDFService: Created ${textDivs.length} text divs for page ${pageNum}`);
     return { textDivs, renderTask: mockRenderTask };
+  }
+
+  /**
+   * Build PDF-space rectangles from text divs after text layer rendering
+   * This is done once per page to cache PDF coordinates for alignment
+   */
+  buildPdfSpaceRects(textDivs: HTMLElement[], viewport: PageViewport): PDFRect[] {
+    return textDivs.map(div => {
+      const cssRect = extractCssRect(div);
+      return cssToPdfRect(cssRect, { 
+        width: viewport.width, 
+        height: viewport.height, 
+        scale: (viewport as any).scale || 1 
+      } as ProjectionViewport);
+    });
   }
 }
 

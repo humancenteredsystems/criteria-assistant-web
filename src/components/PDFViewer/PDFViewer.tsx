@@ -5,6 +5,7 @@ import './PDFViewer.css';
 
 import SearchBar from '../SearchBar/SearchBar';
 import TextLayer from '../TextLayer/TextLayer';
+import AlignmentValidator from '../Debug/AlignmentValidator';
 
 interface PDFViewerProps {
   file: File;
@@ -24,6 +25,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, overlayOpacity }) => {
   const [error, setError] = useState<string | null>(null); // 🔥 ERROR HANDLING: Add error state
   const [isLoading, setIsLoading] = useState(false); // 🔥 LOADING STATES: Add loading indicator
   const [isRendering, setIsRendering] = useState(false); // 🔥 LOADING STATES: Add rendering indicator
+  const [showAlignmentDebug, setShowAlignmentDebug] = useState(false); // Debug toggle for alignment validation
 
   const loadDocument = useCallback(async () => {
     try {
@@ -228,6 +230,16 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, overlayOpacity }) => {
           <button onClick={zoomIn}>+</button>
           <button onClick={fitToWidth}>Fit Width</button>
           <button onClick={fitToPage}>Fit Page</button>
+          <button 
+            onClick={() => setShowAlignmentDebug(!showAlignmentDebug)}
+            style={{ 
+              background: showAlignmentDebug ? '#ff6b6b' : '#6c757d',
+              color: 'white',
+              marginLeft: '16px'
+            }}
+          >
+            {showAlignmentDebug ? 'Hide Debug' : 'Show Debug'}
+          </button>
         </div>
         <div className="viewer-container">
           {isRendering && (
@@ -238,13 +250,22 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, overlayOpacity }) => {
             <div className="textLayer" data-page={currentPage} ref={textLayerRef}></div>
             <div className="highlightLayer" data-page={currentPage} ref={hlLayerRef}></div>
             {pdfDoc && (
-              <TextLayer 
-                pdfDoc={pdfDoc} 
-                pageNum={currentPage} 
-                scale={scale}
-                textLayerRef={textLayerRef}
-                hlLayerRef={hlLayerRef}
-              />
+              <>
+                <TextLayer 
+                  pdfDoc={pdfDoc} 
+                  pageNum={currentPage} 
+                  scale={scale}
+                  textLayerRef={textLayerRef}
+                  hlLayerRef={hlLayerRef}
+                />
+                <AlignmentValidator
+                  pageNum={currentPage}
+                  scale={scale}
+                  pdfDoc={pdfDoc}
+                  hlLayerRef={hlLayerRef}
+                  enabled={showAlignmentDebug}
+                />
+              </>
             )}
           </div>
         </div>
