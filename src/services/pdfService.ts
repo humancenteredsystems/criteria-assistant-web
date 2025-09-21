@@ -31,7 +31,7 @@ export class PDFService {
       throw new Error('PDF document not provided');
     }
     const page = await pdfDoc.getPage(pageNum);
-    const viewport = page.getViewport({ scale });
+    const viewport = page.getViewport({ scale, rotation: page.rotate || 0 });
     const dpr = window.devicePixelRatio || 1;
     
     const canvas = document.createElement('canvas');
@@ -77,7 +77,7 @@ export class PDFService {
       throw new Error('PDF document not provided');
     }
     const page = await pdfDoc.getPage(pageNum);
-    const viewport = page.getViewport({ scale });
+    const viewport = page.getViewport({ scale, rotation: page.rotate || 0 });
     const textContent = await page.getTextContent();
     
     // Clear container and set dimensions

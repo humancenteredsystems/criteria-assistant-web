@@ -5,8 +5,10 @@ interface TextStore {
   searchTerm: string;
   matchDivIndicesByPage: Record<number, number[]>; // indices into textDivs for that page
   currentMatchIndex: number;                        // index in the page's list
+  currentPage: number;                              // current page number
   setSearchTerm: (term: string) => void;
   setPageMatches: (page: number, divIndices: number[]) => void;
+  setCurrentPage: (page: number) => void;
   nextMatch: () => void;
   prevMatch: () => void;
 }
@@ -15,6 +17,7 @@ const useTextStore = create<TextStore>((set, get) => ({
   searchTerm: '',
   matchDivIndicesByPage: {},
   currentMatchIndex: -1,
+  currentPage: 1,
 
   setSearchTerm: (term) => {
     // just set the term and reset position; TextLayer will compute indices
@@ -32,19 +35,20 @@ const useTextStore = create<TextStore>((set, get) => ({
     });
   },
 
+  setCurrentPage: (page) => {
+    set({ currentPage: page });
+  },
+
   nextMatch: () => {
-    const { currentMatchIndex, matchDivIndicesByPage } = get();
-    // caller (TextLayer) ensures current page before invoking navigation UI
-    const page = (window as any).__currentPdfPage as number || 1;
-    const list = matchDivIndicesByPage[page] ?? [];
+    const { currentMatchIndex, matchDivIndicesByPage, currentPage } = get();
+    const list = matchDivIndicesByPage[currentPage] ?? [];
     if (list.length === 0) return;
     set({ currentMatchIndex: (currentMatchIndex + 1) % list.length });
   },
 
   prevMatch: () => {
-    const { currentMatchIndex, matchDivIndicesByPage } = get();
-    const page = (window as any).__currentPdfPage as number || 1;
-    const list = matchDivIndicesByPage[page] ?? [];
+    const { currentMatchIndex, matchDivIndicesByPage, currentPage } = get();
+    const list = matchDivIndicesByPage[currentPage] ?? [];
     if (list.length === 0) return;
     set({ currentMatchIndex: (currentMatchIndex - 1 + list.length) % list.length });
   },

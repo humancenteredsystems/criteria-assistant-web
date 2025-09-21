@@ -17,7 +17,7 @@ interface TextLayerProps {
 const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [textDivs, setTextDivs] = useState<HTMLElement[]>([]);
-  const { searchTerm, currentMatchIndex, setPageMatches } = useTextStore();
+  const { searchTerm, currentMatchIndex, setPageMatches, setCurrentPage } = useTextStore();
 
   // Render text layer using PDF.js API when page or scale changes
   useEffect(() => {
@@ -39,21 +39,15 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
   // compute matches whenever term, page, scale, or textDivs change
   useEffect(() => {
     if (!containerRef.current) return;
-    // expose current page for nav (keeps SearchBar simple)
-    (window as any).__currentPdfPage = pageNum;
+    // update current page in store for SearchBar
+    setCurrentPage(pageNum);
 
     const term = searchTerm.trim().toLowerCase();
-    if (!term || textDivs.length === 0) {
-      setPageMatches(pageNum, []);
-      return;
-    }
-    const indices: number[] = [];
-    for (let i = 0; i < textDivs.length; i++) {
-      const t = (textDivs[i].textContent || '').toLowerCase();
-      if (t.includes(term)) indices.push(i);
-    }
-    setPageMatches(pageNum, indices);
-  }, [searchTerm, pageNum, scale, textDivs, setPageMatches]);
+    const idx: number[] = term ? textDivs
+      .map((el, i) => [(el.textContent || '').toLowerCase().includes(term), i] as const)
+      .filter(([hit]) => hit).map(([, i]) => i) : [];
+    setPageMatches(pageNum, idx);
+  }, [textDivs, searchTerm, pageNum, scale, setPageMatches, setCurrentPage]);
 
   // Auto-scroll active match into view
   useEffect(() => {
