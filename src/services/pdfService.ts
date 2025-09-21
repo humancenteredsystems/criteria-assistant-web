@@ -75,7 +75,7 @@ export class PDFService {
     });
   }
 
-  // Render text layer using PDF.js renderTextLayer API for proper alignment
+  // Render text layer using manual text div creation (PDF.js v5.x compatible)
   async renderTextLayer(
     pdfDoc: any,
     pageNum: number,
@@ -95,14 +95,42 @@ export class PDFService {
     container.style.height = `${viewport.height}px`;
     
     const textDivs: HTMLElement[] = [];
-    const renderTask = (pdfjsLib as any).renderTextLayer({
-      textContent,
-      container,
-      viewport,
-      textDivs
+    
+    // Manual text layer creation - compatible with PDF.js v5.x
+    textContent.items.forEach((item: any, index: number) => {
+      const div = document.createElement('div');
+      div.textContent = item.str;
+      
+      // Position the div using transform matrix
+      const transform = item.transform;
+      const x = transform[4];
+      const y = transform[5];
+      
+      // Convert PDF coordinates to CSS coordinates
+      const cssX = x;
+      const cssY = viewport.height - y - (item.height || 12); // Flip Y coordinate
+      
+      div.style.position = 'absolute';
+      div.style.left = `${cssX}px`;
+      div.style.top = `${cssY}px`;
+      div.style.fontSize = `${item.height || 12}px`;
+      div.style.fontFamily = item.fontName || 'sans-serif';
+      div.style.color = 'transparent'; // Make text invisible but keep layout
+      div.style.pointerEvents = 'none';
+      div.style.userSelect = 'none';
+      
+      container.appendChild(div);
+      textDivs.push(div);
     });
+    
+    // Create a mock render task that resolves immediately
+    const mockRenderTask = {
+      promise: Promise.resolve(),
+      cancel: () => {}
+    };
 
-    return { textDivs, renderTask };
+    console.log(`PDFService: Created ${textDivs.length} text divs for page ${pageNum}`);
+    return { textDivs, renderTask: mockRenderTask };
   }
 }
 
