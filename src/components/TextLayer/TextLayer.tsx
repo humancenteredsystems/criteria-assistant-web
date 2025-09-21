@@ -21,31 +21,31 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale }) => {
 
   // Render text layer using PDF.js API when page or scale changes
   useEffect(() => {
-    if (!pdfDoc || !containerRef.current) return;
-
-    const renderText = async () => {
+    if (!pdfDoc) return;
+    const el = containerRef.current!;
+    const run = async () => {
       try {
-        const divs = await pdfService.renderTextLayer(pdfDoc, pageNum, scale, containerRef.current!);
+        const divs = await pdfService.renderTextLayer(pdfDoc, pageNum, scale, el);
         setTextDivs(divs);
-      } catch (error) {
-        console.error('Failed to render text layer:', error);
+      } catch (e) {
+        console.error('Failed to render text layer:', e);
         setTextDivs([]);
       }
     };
-
-    renderText();
+    run();
   }, [pdfDoc, pageNum, scale]);
 
   // compute matches whenever term, page, scale, or textDivs change
   useEffect(() => {
-    if (!containerRef.current) return;
-    // update current page in store for SearchBar
+    // setCurrentPage must always run
     setCurrentPage(pageNum);
 
-    const term = searchTerm.trim().toLowerCase();
-    const idx: number[] = term ? textDivs
-      .map((el, i) => [(el.textContent || '').toLowerCase().includes(term), i] as const)
-      .filter(([hit]) => hit).map(([, i]) => i) : [];
+    const norm = (s: string) => s.normalize('NFKC').toLowerCase();
+    const term = norm(searchTerm.trim());
+    const idx = term
+      ? textDivs.map((el, i) => (norm(el.textContent || '').includes(term) ? i : -1))
+               .filter(i => i >= 0)
+      : [];
     setPageMatches(pageNum, idx);
   }, [textDivs, searchTerm, pageNum, scale, setPageMatches, setCurrentPage]);
 

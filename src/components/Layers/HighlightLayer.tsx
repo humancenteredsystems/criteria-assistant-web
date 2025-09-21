@@ -35,7 +35,7 @@ const HighlightLayer: React.FC<Props> = ({ textDivs, pageNum }) => {
     );
   });
 
-  return <div className="highlight-layer" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 2 }}>{nodes}</div>;
+  return <div className="highlight-layer" style={{ position: 'absolute', pointerEvents: 'none', zIndex: 2 }}>{nodes}</div>;
 };
 
 export default HighlightLayer;
