@@ -6,6 +6,7 @@ import './PDFViewer.css';
 import SearchBar from '../SearchBar/SearchBar';
 import TextLayer from '../TextLayer/TextLayer';
 import AlignmentValidator from '../Debug/AlignmentValidator';
+import VisualAlignmentValidator from '../Debug/VisualAlignmentValidator';
 
 interface PDFViewerProps {
   file: File;
@@ -20,12 +21,14 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, overlayOpacity }) => {
   const [pageCount, setPageCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [scale, setScale] = useState(1.0);
+  const [currentViewport, setCurrentViewport] = useState<{ width: number; height: number; scale: number; rotation?: number } | null>(null);
   const [isDocumentLoaded, setIsDocumentLoaded] = useState(false);
   const [pdfDoc, setPdfDoc] = useState<any>(null); // 🔥 SINGLETON FIX: Store document in component state
   const [error, setError] = useState<string | null>(null); // 🔥 ERROR HANDLING: Add error state
   const [isLoading, setIsLoading] = useState(false); // 🔥 LOADING STATES: Add loading indicator
   const [isRendering, setIsRendering] = useState(false); // 🔥 LOADING STATES: Add rendering indicator
   const [showAlignmentDebug, setShowAlignmentDebug] = useState(false); // Debug toggle for alignment validation
+  const [showVisualValidation, setShowVisualValidation] = useState(false); // Toggle for comprehensive visual validation
 
   const loadDocument = useCallback(async () => {
     try {
@@ -117,6 +120,14 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, overlayOpacity }) => {
 
         if (cancelled) return;
         
+        // Store the current viewport for use by child components
+        setCurrentViewport({
+          width: viewport.width,
+          height: viewport.height,
+          scale: viewport.scale,
+          rotation: rotation
+        });
+        
         // Set up text layer positioning
         textLayerEl.style.position = 'absolute';
         textLayerEl.style.left = '0';
@@ -173,8 +184,55 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, overlayOpacity }) => {
   const goNext = () => { if (currentPage < pageCount) setCurrentPage(currentPage + 1); };
   const zoomIn = () => setScale(scale + 0.25);
   const zoomOut = () => setScale(Math.max(0.25, scale - 0.25));
-  const fitToWidth = () => setScale(1.0);
-  const fitToPage = () => setScale(0.75);
+  
+  const fitToWidth = async () => {
+    if (!pdfDoc || !pageElRef.current) return;
+    
+    try {
+      const page = await pdfDoc.getPage(currentPage);
+      const baseViewport = page.getViewport({ scale: 1.0, rotation: page.rotate || 0 });
+      const containerWidth = pageElRef.current.parentElement?.clientWidth || 800;
+      
+      // Calculate scale to fit page width to container width (with some padding)
+      const padding = 40; // 20px padding on each side
+      const availableWidth = containerWidth - padding;
+      const fitScale = availableWidth / baseViewport.width;
+      
+      setScale(Math.max(0.25, Math.min(4.0, fitScale))); // Clamp between 0.25x and 4x
+    } catch (error) {
+      console.error('Failed to calculate fit-to-width scale:', error);
+      setScale(1.0); // Fallback to 1x
+    }
+  };
+  
+  const fitToPage = async () => {
+    if (!pdfDoc || !pageElRef.current) return;
+    
+    try {
+      const page = await pdfDoc.getPage(currentPage);
+      const baseViewport = page.getViewport({ scale: 1.0, rotation: page.rotate || 0 });
+      const container = pageElRef.current.parentElement;
+      
+      if (!container) return;
+      
+      const containerWidth = container.clientWidth;
+      const containerHeight = container.clientHeight;
+      
+      // Calculate scale to fit entire page in container (with padding)
+      const padding = 40;
+      const availableWidth = containerWidth - padding;
+      const availableHeight = containerHeight - padding;
+      
+      const scaleX = availableWidth / baseViewport.width;
+      const scaleY = availableHeight / baseViewport.height;
+      const fitScale = Math.min(scaleX, scaleY); // Use smaller scale to fit both dimensions
+      
+      setScale(Math.max(0.25, Math.min(4.0, fitScale))); // Clamp between 0.25x and 4x
+    } catch (error) {
+      console.error('Failed to calculate fit-to-page scale:', error);
+      setScale(0.75); // Fallback to 0.75x
+    }
+  };
 
   if (error) {
     return (
@@ -240,6 +298,16 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, overlayOpacity }) => {
           >
             {showAlignmentDebug ? 'Hide Debug' : 'Show Debug'}
           </button>
+          <button 
+            onClick={() => setShowVisualValidation(!showVisualValidation)}
+            style={{ 
+              background: showVisualValidation ? '#4CAF50' : '#6c757d',
+              color: 'white',
+              marginLeft: '8px'
+            }}
+          >
+            {showVisualValidation ? 'Hide Validation' : 'Validate Alignment'}
+          </button>
         </div>
         <div className="viewer-container">
           {isRendering && (
@@ -249,21 +317,28 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, overlayOpacity }) => {
             <canvas ref={canvasRef} className="pdf-canvas"></canvas>
             <div className="textLayer" data-page={currentPage} ref={textLayerRef}></div>
             <div className="highlightLayer" data-page={currentPage} ref={hlLayerRef}></div>
-            {pdfDoc && (
+            {pdfDoc && currentViewport && (
               <>
                 <TextLayer 
                   pdfDoc={pdfDoc} 
                   pageNum={currentPage} 
-                  scale={scale}
+                  viewport={currentViewport}
                   textLayerRef={textLayerRef}
                   hlLayerRef={hlLayerRef}
                 />
                 <AlignmentValidator
                   pageNum={currentPage}
-                  scale={scale}
+                  viewport={currentViewport}
                   pdfDoc={pdfDoc}
                   hlLayerRef={hlLayerRef}
                   enabled={showAlignmentDebug}
+                />
+                <VisualAlignmentValidator
+                  pageNum={currentPage}
+                  viewport={currentViewport}
+                  pdfDoc={pdfDoc}
+                  hlLayerRef={hlLayerRef}
+                  enabled={showVisualValidation}
                 />
               </>
             )}

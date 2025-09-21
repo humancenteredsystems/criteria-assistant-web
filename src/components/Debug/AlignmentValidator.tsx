@@ -2,11 +2,11 @@
 // Shows crosshairs at PDF page corners to verify alignment at all zoom levels
 
 import React, { useEffect } from 'react';
-import { createValidationCrosshairs } from '../../utils/coordinateProjection';
+import { createValidationCrosshairs, PageViewport } from '../../utils/coordinateProjection';
 
 interface AlignmentValidatorProps {
   pageNum: number;
-  scale: number;
+  viewport: PageViewport;
   pdfDoc: any;
   hlLayerRef: React.RefObject<HTMLDivElement | null>;
   enabled: boolean;
@@ -14,7 +14,7 @@ interface AlignmentValidatorProps {
 
 const AlignmentValidator: React.FC<AlignmentValidatorProps> = ({ 
   pageNum, 
-  scale, 
+  viewport, 
   pdfDoc, 
   hlLayerRef, 
   enabled 
@@ -24,15 +24,9 @@ const AlignmentValidator: React.FC<AlignmentValidatorProps> = ({
 
     const renderCrosshairs = async () => {
       try {
-        const page = await pdfDoc.getPage(pageNum);
-        const viewport = page.getViewport({ scale, rotation: page.rotate || 0 });
-        
-        // Create crosshairs at PDF page corners
-        const crosshairs = createValidationCrosshairs({
-          width: viewport.width,
-          height: viewport.height,
-          scale
-        });
+        // Use the passed viewport directly instead of recreating it
+        // This ensures we use the same viewport as other components
+        const crosshairs = createValidationCrosshairs(viewport);
         
         // Render crosshairs in highlight layer
         const hlLayerEl = hlLayerRef.current;
@@ -55,7 +49,7 @@ const AlignmentValidator: React.FC<AlignmentValidatorProps> = ({
           crosshair.style.border = '1px solid darkred';
           crosshair.style.pointerEvents = 'none';
           crosshair.style.zIndex = '999';
-          crosshair.title = `Corner ${index + 1} - Scale: ${scale}`;
+          crosshair.title = `Corner ${index + 1} - Scale: ${viewport.scale}`;
           
           // Add crosshair pattern
           crosshair.innerHTML = `
@@ -66,14 +60,14 @@ const AlignmentValidator: React.FC<AlignmentValidatorProps> = ({
           hlLayerEl.appendChild(crosshair);
         });
         
-        console.log(`AlignmentValidator: Added ${crosshairs.length} crosshairs for page ${pageNum} at scale ${scale}`);
+        console.log(`AlignmentValidator: Added ${crosshairs.length} crosshairs for page ${pageNum} at scale ${viewport.scale}`);
       } catch (error) {
         console.error('Failed to render alignment crosshairs:', error);
       }
     };
 
     renderCrosshairs();
-  }, [pageNum, scale, pdfDoc, hlLayerRef, enabled]);
+  }, [pageNum, viewport, pdfDoc, hlLayerRef, enabled]);
 
   // Cleanup crosshairs when disabled
   useEffect(() => {

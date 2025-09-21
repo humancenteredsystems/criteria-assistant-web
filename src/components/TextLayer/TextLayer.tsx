@@ -3,10 +3,12 @@ import useTextStore from '../../store/textStore';
 import pdfService from '../../services/pdfService';
 import HighlightLayer from '../Layers/HighlightLayer';
 
+import { PageViewport } from '../../utils/coordinateProjection';
+
 interface TextLayerProps {
   pdfDoc: any;
   pageNum: number;
-  scale: number;
+  viewport: PageViewport;
   textLayerRef: React.RefObject<HTMLDivElement | null>;
   hlLayerRef: React.RefObject<HTMLDivElement | null>;
 }
@@ -15,7 +17,7 @@ interface TextLayerProps {
  * Renders transparent text geometry using PDF.js renderTextLayer API for proper alignment.
  * Overlays highlight rectangles for search matches.
  */
-const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale, textLayerRef, hlLayerRef }) => {
+const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, viewport, textLayerRef, hlLayerRef }) => {
   const [textDivs, setTextDivs] = useState<HTMLElement[]>([]);
   const { searchTerm, currentMatchIndex, setPageMatches, setCurrentPage, setPdfRects } = useTextStore();
 
@@ -34,7 +36,7 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale, textLayer
         const { textDivs: divs, renderTask: task } = await pdfService.renderTextLayer(
           pdfDoc,
           pageNum,
-          scale,
+          viewport.scale,
           container
         );
         renderTask = task;
@@ -57,8 +59,8 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale, textLayer
         if (divs.length > 0) {
           try {
             const page = await pdfDoc.getPage(pageNum);
-            const viewport = page.getViewport({ scale, rotation: page.rotate || 0 });
-            const pdfRects = pdfService.buildPdfSpaceRects(divs, viewport);
+            const pdfViewport = page.getViewport({ scale: viewport.scale, rotation: page.rotate || 0 });
+            const pdfRects = pdfService.buildPdfSpaceRects(divs, pdfViewport);
             setPdfRects(pageNum, pdfRects);
             console.log(`TextLayer: Cached ${pdfRects.length} PDF rects for page ${pageNum}`);
           } catch (error) {
@@ -82,7 +84,7 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale, textLayer
         renderTask.cancel();
       }
     };
-  }, [pdfDoc, pageNum, scale]); // ❗ remove ref from deps; ref object identity is stable enough here
+  }, [pdfDoc, pageNum, viewport.scale]); // ❗ remove ref from deps; ref object identity is stable enough here
 
   // keep current page in store, but write only when it actually changes
   const lastPageRef = React.useRef<number | null>(null);
@@ -123,7 +125,7 @@ const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, scale, textLayer
     <HighlightLayer
       textDivs={textDivs}
       pageNum={pageNum}
-      scale={scale}
+      viewport={viewport}
       textLayerRef={textLayerRef}
       hlLayerRef={hlLayerRef}
     />

@@ -163,6 +163,7 @@ export class PDFService {
     }
 
     // Manual fallback (DOM-only geometry; glyphs hidden by CSS in the app)
+    // IMPORTANT: No CSS transforms - compute final positions numerically to match extractCssRect behavior
     
     textContent.items.forEach((item: any, index: number) => {
       const div = document.createElement('div');
@@ -170,32 +171,36 @@ export class PDFService {
       
       // Use PDF.js transform matrix for positioning
       const transform = item.transform;
-      const x = transform[4];
-      const y = transform[5];
-      const width = item.width || 0;
-      const height = item.height || 12;
+      const pdfX = transform[4];
+      const pdfY = transform[5];
+      const baseWidth = item.width || 0;
+      const baseHeight = item.height || 12;
+      
+      // Apply scaling from transform matrix numerically (no CSS transform)
+      const scaleX = transform[0];
+      const scaleY = transform[3];
+      const finalWidth = baseWidth * Math.abs(scaleX);
+      const finalHeight = baseHeight * Math.abs(scaleY);
       
       // Convert PDF coordinates to CSS coordinates (PDF origin is bottom-left, CSS is top-left)
-      const cssX = x;
-      const cssY = viewport.height - y - height; // Proper Y-axis conversion
+      // Account for scaling in the coordinate conversion
+      const cssX = pdfX;
+      const cssY = viewport.height - pdfY - finalHeight;
       
+      // Set final computed positions directly (no transforms)
       div.style.position = 'absolute';
       div.style.left = `${cssX}px`;
       div.style.top = `${cssY}px`;
-      div.style.width = `${width}px`;
-      div.style.height = `${height}px`;
-      div.style.fontSize = `${height}px`;
+      div.style.width = `${finalWidth}px`;
+      div.style.height = `${finalHeight}px`;
+      div.style.fontSize = `${finalHeight}px`;
       div.style.fontFamily = item.fontName || 'sans-serif';
       div.style.whiteSpace = 'pre';
       div.style.pointerEvents = 'none';
       div.style.userSelect = 'none';
       div.style.lineHeight = '1';
-      div.style.transformOrigin = '0% 0%';
       
-      // Apply any scaling from the transform matrix
-      if (transform[0] !== 1 || transform[3] !== 1) {
-        div.style.transform = `scaleX(${transform[0]}) scaleY(${transform[3]})`;
-      }
+      // No CSS transforms - all scaling is baked into the computed positions
       
       container.appendChild(div);
       textDivs.push(div);

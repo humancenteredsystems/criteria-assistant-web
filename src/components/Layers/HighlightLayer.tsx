@@ -1,16 +1,16 @@
 import React from 'react';
 import useTextStore from '../../store/textStore';
-import { pdfToCssRect } from '../../utils/coordinateProjection';
+import { pdfToCssRect, PageViewport } from '../../utils/coordinateProjection';
 
 type Props = { 
   textDivs: HTMLElement[]; 
   pageNum: number;
-  scale: number;
+  viewport: PageViewport;
   textLayerRef: React.RefObject<HTMLDivElement | null>;
   hlLayerRef: React.RefObject<HTMLDivElement | null>;
 };
 
-const HighlightLayer: React.FC<Props> = ({ textDivs, pageNum, scale, textLayerRef, hlLayerRef }) => {
+const HighlightLayer: React.FC<Props> = ({ textDivs, pageNum, viewport, textLayerRef, hlLayerRef }) => {
   const { searchTerm, matchDivIndicesByPage, currentMatchIndex, pdfRectsByPage } = useTextStore();
   const raw = matchDivIndicesByPage[pageNum] ?? [];
   const indices = React.useMemo(() => raw.slice(), [raw, pageNum]);
@@ -27,8 +27,8 @@ const HighlightLayer: React.FC<Props> = ({ textDivs, pageNum, scale, textLayerRe
     
     if (!searchTerm.trim() || indices.length === 0 || pdfRects.length === 0) return;
 
-    // Project PDF-space rectangles to CSS pixels using current scale
-    const viewport = { width: 0, height: 0, scale }; // width/height not needed for projection
+    // Project PDF-space rectangles to CSS pixels using current viewport
+    // Now using the complete viewport with proper width, height, scale, and rotation
     
     indices.forEach((divIndex, k) => {
       if (divIndex >= pdfRects.length) return;
@@ -51,7 +51,7 @@ const HighlightLayer: React.FC<Props> = ({ textDivs, pageNum, scale, textLayerRe
       });
       hlLayerEl.appendChild(div);
     });
-  }, [pageNum, scale, searchTerm, indices, currentMatchIndex, pdfRects]);
+  }, [pageNum, viewport, searchTerm, indices, currentMatchIndex, pdfRects]);
 
   return null; // Highlights are rendered directly into the DOM element
 };
