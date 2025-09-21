@@ -1,5 +1,5 @@
 // PDFViewer component: displays PDF pages with navigation, zoom, and thumbnail sidebar
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import pdfService from '../../services/pdfService';
 import './PDFViewer.css';
 
@@ -21,39 +21,38 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
   const [isLoading, setIsLoading] = useState(false); // 🔥 LOADING STATES: Add loading indicator
   const [isRendering, setIsRendering] = useState(false); // 🔥 LOADING STATES: Add rendering indicator
 
-  // Load document on file change
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      try {
-        setIsLoading(true);
-        setIsDocumentLoaded(false);
-        setError(null);
-        const pdf = await pdfService.loadDocument(file);
-        if (cancelled) return;
-        setPdfDoc(pdf);
-        setPageCount(pdf.numPages);
-        setCurrentPage(1);
-        setIsDocumentLoaded(true);
-      } catch (err) {
-        if (cancelled) return;
-        console.error('Failed to load PDF:', err);
-        setError(`Failed to load PDF: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        setIsDocumentLoaded(false);
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
+  const loadDocument = useCallback(async () => {
+    try {
+      const pdf = await pdfService.loadDocument(file);
+      setPdfDoc(pdf);
+      setPageCount(pdf.numPages);
+      setCurrentPage(1);
+      setIsDocumentLoaded(true);
+    } catch (err) {
+      console.error('Failed to load PDF:', err);
+      setError(`Failed to load PDF: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setIsDocumentLoaded(false);
+    } finally {
+      setIsLoading(false);
     }
 
-    load();
-
-    return () => {
-      cancelled = true;
-    };
   }, [file]);
+
+  const initiateLoad = useCallback(() => {
+    setError(null);
+    setIsLoading(true);
+    setIsDocumentLoaded(false);
+    void loadDocument();
+  }, [loadDocument]);
+
+  // Load document on file change
+  useEffect(() => {
+    initiateLoad();
+  }, [initiateLoad]);
+
+  const handleRetry = () => {
+    initiateLoad();
+  };
 
   // Render page when currentPage or scale changes - only after document is loaded
   useEffect(() => {
@@ -129,7 +128,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file }) => {
         <div className="pdf-error">
           <h3>Error Loading PDF</h3>
           <p>{error}</p>
-          <button onClick={() => window.location.reload()}>Reload Page</button>
+          <button onClick={handleRetry}>Reload Document</button>
         </div>
       </div>
     );
