@@ -14,18 +14,25 @@ const HighlightLayer: React.FC<Props> = ({ textDivs, pageNum }) => {
   if (!containerRect) return null;
 
   const nodes = indices.map((i, k) => {
-    const rect = textDivs[i].getBoundingClientRect();
+    const textDiv = textDivs[i];
     const isActive = k === currentMatchIndex;
+    
+    // Use the same positioning as the text div - direct CSS coordinates
+    const left = textDiv.style.left;
+    const top = textDiv.style.top;
+    const width = `${textDiv.offsetWidth}px`;
+    const height = `${textDiv.offsetHeight}px`;
+    
     return (
       <div
         key={`hl-${i}`}
         className={`highlight ${isActive ? 'active' : ''}`}
         style={{
           position: 'absolute',
-          left: `${rect.left - containerRect.left}px`,
-          top: `${rect.top - containerRect.top}px`,
-          width: `${rect.width}px`,
-          height: `${rect.height}px`,
+          left: left,
+          top: top,
+          width: width,
+          height: height,
           background: 'rgba(255, 235, 59, 0.45)',
           outline: isActive ? '2px solid #f57c00' : 'none',
           pointerEvents: 'none',

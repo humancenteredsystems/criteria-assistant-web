@@ -106,9 +106,9 @@ export class PDFService {
       const x = transform[4];
       const y = transform[5];
       
-      // Use PDF coordinates directly - PDF.js handles coordinate system internally
+      // Convert PDF coordinates to CSS coordinates (PDF origin is bottom-left, CSS is top-left)
       const cssX = x;
-      const cssY = y;
+      const cssY = viewport.height - y; // Flip Y coordinate, but don't subtract item height
       
       div.style.position = 'absolute';
       div.style.left = `${cssX}px`;
