@@ -223,10 +223,12 @@ export class PDFService {
   buildPdfSpaceRects(textDivs: HTMLElement[], viewport: PageViewport): PDFRect[] {
     return textDivs.map(div => {
       const cssRect = extractCssRect(div);
+      // include rotation when caching saved rects
       return cssToPdfRect(cssRect, { 
         width: viewport.width, 
         height: viewport.height, 
-        scale: (viewport as any).scale || 1 
+        scale: (viewport as any).scale || 1,
+        rotation: (viewport as any).rotation || 0
       } as ProjectionViewport);
     });
   }

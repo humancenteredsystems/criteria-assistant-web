@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import useTextStore from '../../store/textStore';
 import pdfService from '../../services/pdfService';
 import HighlightLayer from '../Layers/HighlightLayer';
-
-import { PageViewport } from '../../utils/coordinateProjection';
+import { PageViewport, PDFRect, cssToPdfRect } from '../../utils/coordinateProjection';
 
 interface TextLayerProps {
   pdfDoc: any;
@@ -14,112 +13,88 @@ interface TextLayerProps {
 }
 
 /**
- * Renders transparent text geometry using PDF.js renderTextLayer API for proper alignment.
- * Overlays highlight rectangles for search matches.
+ * Renders transparent text geometry with PDF.js renderTextLayer,
+ * then computes tight PDF-space rectangles for each substring match.
  */
-const TextLayer: React.FC<TextLayerProps> = ({ pdfDoc, pageNum, viewport, textLayerRef, hlLayerRef }) => {
+const TextLayer: React.FC<TextLayerProps> = ({
+  pdfDoc,
+  pageNum,
+  viewport,
+  textLayerRef,
+  hlLayerRef
+}) => {
   const [textDivs, setTextDivs] = useState<HTMLElement[]>([]);
-  const { searchTerm, currentMatchIndex, setPageMatches, setCurrentPage, setPdfRects } = useTextStore();
+  const { searchTerm, setPdfRects, setCurrentPage } = useTextStore();
 
-  // Render text layer only when pdfDoc/pageNum/scale change
+  // Render text layer and cache text DIVs
   useEffect(() => {
     if (!pdfDoc || !textLayerRef.current) return;
-
     let cancelled = false;
-    let renderTask: any | null = null;
+    let task: any = null;
 
     const run = async () => {
-      try {
-        const container = textLayerRef.current;
-        if (!container) return;
-
-        const { textDivs: divs, renderTask: task } = await pdfService.renderTextLayer(
-          pdfDoc,
-          pageNum,
-          viewport.scale,
-          container
-        );
-        renderTask = task;
-
-        try {
-          await renderTask.promise;
-        } catch (taskError: any) {
-          if (taskError?.name === 'RenderingCancelledException') {
-            return;
-          }
-          throw taskError;
-        }
-
-        if (cancelled) return;
-
-        setTextDivs([...divs]);
-        
-        // Cache PDF-space rectangles after text layer rendering
-        // This is done once per page/scale to enable projection-based highlighting
-        if (divs.length > 0) {
-          try {
-            const page = await pdfDoc.getPage(pageNum);
-            const pdfViewport = page.getViewport({ scale: viewport.scale, rotation: page.rotate || 0 });
-            const pdfRects = pdfService.buildPdfSpaceRects(divs, pdfViewport);
-            setPdfRects(pageNum, pdfRects);
-            console.log(`TextLayer: Cached ${pdfRects.length} PDF rects for page ${pageNum}`);
-          } catch (error) {
-            console.error('Failed to cache PDF rects:', error);
-          }
-        }
-      } catch (e: any) {
-        if (cancelled) return;
-        if (e?.name === 'RenderingCancelledException') {
-          return;
-        }
-        console.error('Failed to render text layer:', e);
-        setTextDivs([]);
-      }
+      const container = textLayerRef.current!;
+      const { textDivs: divs, renderTask } = await pdfService.renderTextLayer(
+        pdfDoc,
+        pageNum,
+        viewport.scale,
+        container
+      );
+      task = renderTask;
+      try { await task.promise; } catch {}
+      if (cancelled) return;
+      setTextDivs(divs);
+      // Cache initial rects (full div) if desired, but substring handler below will overwrite
+      setCurrentPage(pageNum);
     };
     run();
 
     return () => {
       cancelled = true;
-      if (renderTask && typeof renderTask.cancel === 'function') {
-        renderTask.cancel();
-      }
+      task?.cancel?.();
     };
-  }, [pdfDoc, pageNum, viewport.scale]); // ❗ remove ref from deps; ref object identity is stable enough here
+  }, [pdfDoc, pageNum, viewport.scale]);
 
-  // keep current page in store, but write only when it actually changes
-  const lastPageRef = React.useRef<number | null>(null);
+  // Compute tight PDF-space rects for each match substring
   useEffect(() => {
-    if (lastPageRef.current !== pageNum) {
-      setCurrentPage(pageNum);
-      lastPageRef.current = pageNum;
-    }
-  }, [pageNum, setCurrentPage]);
-
-  // compute matches ONLY when textDivs, term, or page change
-  useEffect(() => {
-    // Only compute matches if we have textDivs populated
-    if (textDivs.length === 0) {
-      setPageMatches(pageNum, []);
-      return;
-    }
-
-    const norm = (s: string) => s.normalize('NFKC').toLowerCase();
-    const term = norm(searchTerm.trim());
-    
+    if (!textLayerRef.current) return;
+    const container = textLayerRef.current;
+    const parentRect = container.getBoundingClientRect();
+    const term = searchTerm.trim().normalize('NFKC');
     if (!term) {
-      setPageMatches(pageNum, []);
+      setPdfRects(pageNum, []);
       return;
     }
-
-    const idx = textDivs
-      .map((el, i) => (norm(el.textContent || '').includes(term) ? i : -1))
-      .filter(i => i >= 0);
-    
-    setPageMatches(pageNum, idx);
-  }, [textDivs, searchTerm, pageNum, setPageMatches]);
-
-  // Auto-scroll is now handled only by Next/Prev buttons, not on search term changes
-  // This prevents the page from being scrolled out of view while typing
+    const rectsAll: PDFRect[] = [];
+    textDivs.forEach(div => {
+      const text = (div.textContent || '').normalize('NFKC');
+      const idxLower = text.toLowerCase();
+      const termLower = term.toLowerCase();
+      let start = idxLower.indexOf(termLower);
+      while (start >= 0) {
+        const end = start + termLower.length;
+        const range = document.createRange();
+        const node = div.firstChild;
+        if (node) {
+          range.setStart(node, start);
+          range.setEnd(node, end);
+          const clientRects = Array.from(range.getClientRects());
+          clientRects.forEach(cr => {
+            const cssRect = {
+              left: cr.left - parentRect.left,
+              top: cr.top - parentRect.top,
+              width: cr.width,
+              height: cr.height
+            };
+            const pdfRect = cssToPdfRect(cssRect, viewport);
+            rectsAll.push(pdfRect);
+          });
+        }
+        start = idxLower.indexOf(termLower, end);
+      }
+    });
+    setPdfRects(pageNum, rectsAll);
+  }, [textDivs, searchTerm, pageNum, viewport]);
 
   return (
     <HighlightLayer
