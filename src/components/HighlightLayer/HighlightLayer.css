@@ -1,0 +1,13 @@
+/* HighlightLayer styles - minimal CSS for the refactored component */
+
+.highlight {
+  background: rgba(255, 235, 59, 0.45);
+  pointer-events: none;
+  border-radius: 2px;
+}
+
+.highlight.active {
+  background: rgba(255, 193, 7, 0.6);
+  outline: 2px solid #f57c00;
+  outline-offset: -1px;
+}

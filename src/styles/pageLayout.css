@@ -1,0 +1,122 @@
+/* 
+ * Standardized page layout CSS for PDF-space alignment
+ * These rules ensure consistent viewport sizing across all layers
+ */
+
+/* Page container - must match viewport dimensions exactly */
+.page {
+  position: relative;
+  display: block;
+  /* width and height set dynamically to match viewport */
+}
+
+/* Canvas layer - handles DPR internally, sized to viewport */
+.pdf-canvas {
+  position: relative;
+  display: block;
+  z-index: 0;
+  /* Canvas manages its own DPR scaling */
+}
+
+/* Text layer - transparent overlay for text geometry */
+.textLayer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  pointer-events: none;
+  /* width and height set dynamically to match viewport */
+  /* No margin, border, or padding allowed */
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+/* Highlight layer - overlay for search highlights */
+.highlightLayer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  pointer-events: none;
+  /* width and height set dynamically to match viewport */
+  /* No margin, border, or padding allowed */
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+/* Annotation layer - interactive overlay */
+.annotation-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  pointer-events: auto;
+  /* width and height set dynamically to match viewport */
+  /* No margin, border, or padding allowed */
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+/* Text layer content - hide glyphs but preserve geometry */
+.textLayer,
+.textLayer span,
+.textLayer div {
+  color: transparent !important;
+  text-shadow: none !important;
+  caret-color: transparent;
+  /* Preserve all positioning and sizing styles */
+}
+
+/* Highlight styles */
+.highlight {
+  position: absolute;
+  background: rgba(255, 235, 59, 0.45);
+  pointer-events: none;
+  /* No margin, border, or padding allowed */
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.highlight.active {
+  outline: 2px solid #f57c00;
+  background: rgba(255, 193, 7, 0.6);
+}
+
+/* Debug crosshairs for alignment validation */
+.debug-crosshair {
+  position: absolute;
+  background: red;
+  pointer-events: none;
+  z-index: 999;
+  /* No margin, border, or padding allowed */
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.debug-crosshair::before,
+.debug-crosshair::after {
+  content: '';
+  position: absolute;
+  background: red;
+}
+
+.debug-crosshair::before {
+  width: 20px;
+  height: 2px;
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.debug-crosshair::after {
+  width: 2px;
+  height: 20px;
+  left: 50%;
+  top: -10px;
+  transform: translateX(-50%);
+}

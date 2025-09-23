@@ -1,108 +1,90 @@
-import React, { useEffect, useState } from 'react';
-import useTextStore from '../../store/textStore';
+import React, { useEffect } from 'react';
+import { searchController, Viewport } from '../../modules';
 import pdfService from '../../services/pdfService';
-import HighlightLayer from '../Layers/HighlightLayer';
-import { PageViewport, PDFRect, cssToPdfRect } from '../../utils/coordinateProjection';
+import HighlightLayer from '../HighlightLayer/HighlightLayer';
 
 interface TextLayerProps {
   pdfDoc: any;
   pageNum: number;
-  viewport: PageViewport;
+  viewport: Viewport;
   textLayerRef: React.RefObject<HTMLDivElement | null>;
-  hlLayerRef: React.RefObject<HTMLDivElement | null>;
+  highlightLayerRef: React.RefObject<HTMLDivElement | null>;
 }
 
 /**
- * Renders transparent text geometry with PDF.js renderTextLayer,
- * then computes tight PDF-space rectangles for each substring match.
+ * Clean TextLayer component using the refactored modules
+ * Renders text layer and triggers search processing through searchController
  */
 const TextLayer: React.FC<TextLayerProps> = ({
   pdfDoc,
   pageNum,
   viewport,
   textLayerRef,
-  hlLayerRef
+  highlightLayerRef
 }) => {
-  const [textDivs, setTextDivs] = useState<HTMLElement[]>([]);
-  const { searchTerm, setPdfRects, setCurrentPage } = useTextStore();
-
-  // Render text layer and cache text DIVs
+  // Render text layer with PDF.js
   useEffect(() => {
     if (!pdfDoc || !textLayerRef.current) return;
+    
     let cancelled = false;
-    let task: any = null;
+    let renderTask: any = null;
 
-    const run = async () => {
+    const renderTextLayer = async () => {
       const container = textLayerRef.current!;
-      const { textDivs: divs, renderTask } = await pdfService.renderTextLayer(
-        pdfDoc,
-        pageNum,
-        viewport.scale,
-        container
-      );
-      task = renderTask;
-      try { await task.promise; } catch {}
-      if (cancelled) return;
-      setTextDivs(divs);
-      // Cache initial rects (full div) if desired, but substring handler below will overwrite
-      setCurrentPage(pageNum);
+      
+      try {
+        const { renderTask: task } = await pdfService.renderTextLayer(
+          pdfDoc,
+          pageNum,
+          viewport.scale,
+          container
+        );
+        renderTask = task;
+        
+        await task.promise;
+        
+        if (cancelled) return;
+        
+        console.log(`TextLayer: Rendered text layer for page ${pageNum}`);
+        
+      } catch (error) {
+        if (!cancelled) {
+          console.error(`TextLayer: Failed to render text layer for page ${pageNum}:`, error);
+        }
+      }
     };
-    run();
+
+    renderTextLayer();
 
     return () => {
       cancelled = true;
-      task?.cancel?.();
+      renderTask?.cancel?.();
     };
-  }, [pdfDoc, pageNum, viewport.scale]);
+  }, [pdfDoc, pageNum, viewport.scale, textLayerRef]);
 
-  // Compute tight PDF-space rects for each match substring
+  // Process search when text layer is ready and search controller has a query
   useEffect(() => {
-    if (!textLayerRef.current) return;
-    const container = textLayerRef.current;
-    const parentRect = container.getBoundingClientRect();
-    const term = searchTerm.trim().normalize('NFKC');
-    if (!term) {
-      setPdfRects(pageNum, []);
-      return;
-    }
-    const rectsAll: PDFRect[] = [];
-    textDivs.forEach(div => {
-      const text = (div.textContent || '').normalize('NFKC');
-      const idxLower = text.toLowerCase();
-      const termLower = term.toLowerCase();
-      let start = idxLower.indexOf(termLower);
-      while (start >= 0) {
-        const end = start + termLower.length;
-        const range = document.createRange();
-        const node = div.firstChild;
-        if (node) {
-          range.setStart(node, start);
-          range.setEnd(node, end);
-          const clientRects = Array.from(range.getClientRects());
-          clientRects.forEach(cr => {
-            const cssRect = {
-              left: cr.left - parentRect.left,
-              top: cr.top - parentRect.top,
-              width: cr.width,
-              height: cr.height
-            };
-            const pdfRect = cssToPdfRect(cssRect, viewport);
-            rectsAll.push(pdfRect);
-          });
-        }
-        start = idxLower.indexOf(termLower, end);
-      }
-    });
-    setPdfRects(pageNum, rectsAll);
-  }, [textDivs, searchTerm, pageNum, viewport]);
+    if (!textLayerRef.current || !highlightLayerRef.current) return;
+    
+    const stats = searchController.getSearchStats();
+    if (!stats.query.trim()) return;
+    
+    // Process search for this page
+    searchController.processPageSearch(
+      pageNum,
+      stats.query,
+      textLayerRef.current,
+      viewport,
+      highlightLayerRef.current
+    );
+    
+  }, [pageNum, viewport, textLayerRef, highlightLayerRef]);
 
   return (
     <HighlightLayer
-      textDivs={textDivs}
       pageNum={pageNum}
       viewport={viewport}
-      textLayerRef={textLayerRef}
-      hlLayerRef={hlLayerRef}
+      highlightLayerRef={highlightLayerRef}
     />
   );
 };

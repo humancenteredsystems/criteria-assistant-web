@@ -1,41 +1,61 @@
 import React, { useState, useEffect } from 'react';
-import useTextStore from '../../store/textStore';
+import { searchController } from '../../modules';
 import './SearchBar.css';
 
 /**
- * A global search bar for PDF text.
- * Allows entering a search term and navigating between matches.
+ * Clean SearchBar component using the refactored modules
+ * Uses searchController for all search operations and navigation
  */
 const SearchBar: React.FC = () => {
-  const { searchTerm, setSearchTerm, nextMatch, prevMatch, matchDivIndicesByPage, currentPage, currentMatchIndex } = useTextStore();
-  const [inputValue, setInputValue] = useState(searchTerm);
+  const [inputValue, setInputValue] = useState('');
+  const [stats, setStats] = useState({ 
+    totalMatches: 0, 
+    activeIndex: -1, 
+    query: '' 
+  });
 
-  const total = (matchDivIndicesByPage[currentPage] ?? []).length;
+  // Subscribe to search controller state changes
+  useEffect(() => {
+    const unsubscribe = searchController.subscribe((newStats) => {
+      setStats(newStats);
+    });
+    return unsubscribe;
+  }, []);
 
   // Debounce search term updates (150ms)
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      if (inputValue !== searchTerm) {
-        console.log(`SearchBar: Debounced search term update to "${inputValue}"`);
-        setSearchTerm(inputValue);
+      if (inputValue !== stats.query) {
+        console.log(`SearchBar: Starting search for "${inputValue}"`);
+        searchController.startNewSearch(inputValue);
       }
     }, 150);
 
     return () => clearTimeout(timeoutId);
-  }, [inputValue, searchTerm, setSearchTerm]);
+  }, [inputValue, stats.query]);
 
-  // Sync input value when search term changes externally
+  // Sync input value when query changes externally
   useEffect(() => {
-    setInputValue(searchTerm);
-  }, [searchTerm]);
+    setInputValue(stats.query);
+  }, [stats.query]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     console.log(`SearchBar: Input changed to "${e.target.value}"`);
     setInputValue(e.target.value);
   };
 
-  // Debug logging for store state
-  console.log(`SearchBar: Page ${currentPage}, Term: "${searchTerm}", Total: ${total}, CurrentIndex: ${currentMatchIndex}`);
+  const handlePrevious = () => {
+    console.log('SearchBar: Previous match');
+    searchController.prevMatch();
+  };
+
+  const handleNext = () => {
+    console.log('SearchBar: Next match');
+    searchController.nextMatch();
+  };
+
+  // Debug logging for search state
+  console.log(`SearchBar: Query: "${stats.query}", Total: ${stats.totalMatches}, ActiveIndex: ${stats.activeIndex}`);
 
   return (
     <div className="search-bar">
@@ -45,15 +65,15 @@ const SearchBar: React.FC = () => {
         value={inputValue}
         onChange={handleChange}
       />
-      <button onClick={prevMatch} disabled={total === 0}>
+      <button onClick={handlePrevious} disabled={stats.totalMatches === 0}>
         Previous
       </button>
       <span className="search-count">
-        {total > 0
-          ? `${currentMatchIndex + 1} of ${total}`
+        {stats.totalMatches > 0
+          ? `${stats.activeIndex + 1} of ${stats.totalMatches}`
           : '0 of 0'}
       </span>
-      <button onClick={nextMatch} disabled={total === 0}>
+      <button onClick={handleNext} disabled={stats.totalMatches === 0}>
         Next
       </button>
     </div>

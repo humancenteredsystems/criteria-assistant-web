@@ -5,8 +5,7 @@ import './PDFViewer.css';
 
 import SearchBar from '../SearchBar/SearchBar';
 import TextLayer from '../TextLayer/TextLayer';
-import AlignmentValidator from '../Debug/AlignmentValidator';
-import VisualAlignmentValidator from '../Debug/VisualAlignmentValidator';
+import { calculateFitWidth, calculateFitPage, Viewport } from '../../modules';
 
 interface PDFViewerProps {
   file: File;
@@ -21,14 +20,12 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, overlayOpacity }) => {
   const [pageCount, setPageCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [scale, setScale] = useState(1.0);
-  const [currentViewport, setCurrentViewport] = useState<{ width: number; height: number; scale: number; rotation?: number } | null>(null);
+  const [currentViewport, setCurrentViewport] = useState<Viewport | null>(null);
   const [isDocumentLoaded, setIsDocumentLoaded] = useState(false);
   const [pdfDoc, setPdfDoc] = useState<any>(null); // 🔥 SINGLETON FIX: Store document in component state
   const [error, setError] = useState<string | null>(null); // 🔥 ERROR HANDLING: Add error state
   const [isLoading, setIsLoading] = useState(false); // 🔥 LOADING STATES: Add loading indicator
   const [isRendering, setIsRendering] = useState(false); // 🔥 LOADING STATES: Add rendering indicator
-  const [showAlignmentDebug, setShowAlignmentDebug] = useState(false); // Debug toggle for alignment validation
-  const [showVisualValidation, setShowVisualValidation] = useState(false); // Toggle for comprehensive visual validation
 
   const loadDocument = useCallback(async () => {
     try {
@@ -125,7 +122,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, overlayOpacity }) => {
           width: viewport.width,
           height: viewport.height,
           scale: viewport.scale,
-          rotation: rotation
+          rotation: (rotation as 0 | 90 | 180 | 270) || 0
         });
         
         // Set up text layer positioning
@@ -288,26 +285,6 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, overlayOpacity }) => {
           <button onClick={zoomIn}>+</button>
           <button onClick={fitToWidth}>Fit Width</button>
           <button onClick={fitToPage}>Fit Page</button>
-          <button 
-            onClick={() => setShowAlignmentDebug(!showAlignmentDebug)}
-            style={{ 
-              background: showAlignmentDebug ? '#ff6b6b' : '#6c757d',
-              color: 'white',
-              marginLeft: '16px'
-            }}
-          >
-            {showAlignmentDebug ? 'Hide Debug' : 'Show Debug'}
-          </button>
-          <button 
-            onClick={() => setShowVisualValidation(!showVisualValidation)}
-            style={{ 
-              background: showVisualValidation ? '#4CAF50' : '#6c757d',
-              color: 'white',
-              marginLeft: '8px'
-            }}
-          >
-            {showVisualValidation ? 'Hide Validation' : 'Validate Alignment'}
-          </button>
         </div>
         <div className="viewer-container">
           {isRendering && (
@@ -324,21 +301,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, overlayOpacity }) => {
                   pageNum={currentPage} 
                   viewport={currentViewport}
                   textLayerRef={textLayerRef}
-                  hlLayerRef={hlLayerRef}
-                />
-                <AlignmentValidator
-                  pageNum={currentPage}
-                  viewport={currentViewport}
-                  pdfDoc={pdfDoc}
-                  hlLayerRef={hlLayerRef}
-                  enabled={showAlignmentDebug}
-                />
-                <VisualAlignmentValidator
-                  pageNum={currentPage}
-                  viewport={currentViewport}
-                  pdfDoc={pdfDoc}
-                  hlLayerRef={hlLayerRef}
-                  enabled={showVisualValidation}
+                  highlightLayerRef={hlLayerRef}
                 />
               </>
             )}

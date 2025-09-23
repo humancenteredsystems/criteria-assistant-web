@@ -1,212 +1,307 @@
-## architecture.md
+# Criteria Assistant Web — Architecture
 
-# Criteria Assistant Web - Architecture
+## 1. Purpose and Scope
 
-## System Overview
+Client-side PDF viewer and annotation tool that runs entirely in the browser. It renders pages with PDF.js, extracts text geometry, and projects **PDF-space** rectangles onto DOM overlays for exact alignment at any zoom or rotation. This document states the system architecture from a systems-engineering standpoint: objectives, components, interfaces, data, pipelines, invariants, and V\&V.
 
-A client-side web application that processes PDFs entirely in the browser using PDF.js for rendering and text extraction, with a **PDF-space coordinate projection system** for precise highlight alignment.
+---
 
-## Core Architecture: PDF-Space Projection System
+## 2. Architectural Objectives
 
-```
-User Browser
-├── PDF.js Engine
-│   ├── PDF Canvas Rendering → HiDPI Canvas
-│   ├── Text Layer Rendering → Transparent DOM Geometry
-│   └── PDF-Space Coordinates → User Units
-├── Projection System
-│   ├── Coordinate Conversion → PDF Units ↔ CSS Pixels  
-│   ├── Viewport Scaling → Zoom-Independent Alignment
-│   └── Highlight Projection → Positioned DOM Elements
-├── Search & Navigation
-│   ├── Text Matching → Debounced Search (150ms)
-│   ├── Controlled Auto-scroll → Next/Prev Only
-│   └── Match Highlighting → PDF-Space Projection
-└── React Component Tree
-    ├── PDFViewer → Canvas + Layer Management
-    ├── TextLayer → Transparent Geometry
-    ├── HighlightLayer → Search Result Projection
-    └── Debug Tools → Alignment Validation
-```
+* **PDF-space authority:** Store geometry only in PDF user units; never depend on live DOM layout for persisted coordinates.
+* **Single projector:** One conversion module handles PDF↔CSS using a `Viewport` that includes width, height, scale, and rotation.
+* **Deterministic overlay:** Overlays size to the page `Viewport`; alignment is independent of device pixel ratio (DPR).
+* **Search on per-match rects:** Navigation and highlighting operate on rectangles tight to glyphs, not DIVs.
+* **Isolation and testability:** Clear module boundaries; unit tests for projector and pipelines; integration tests for zoom/rotation.
 
-## Current Stable State (Milestone)
+---
 
-**Status**: Fully functional highlight overlay system with perfect alignment
-- ✅ PDF-space coordinate authority established
-- ✅ Projection-based highlighting (no DOM reading for geometry)
-- ✅ Stable rendering pipeline (no infinite loops)
-- ✅ Controlled auto-scroll prevents PDF disappearing
-- ✅ Debug validation tools for alignment verification
+## 3. System Context
 
-## Component Architecture
+**Environment:** Modern browser with PDF.js and a Web Worker for parsing.
+**Inputs:** PDF file (local upload). User queries and commands.
+**Outputs:** Canvas render, transparent text geometry for measurement, DOM/SVG overlays for highlights and annotations.
+**External Dependencies:** PDF.js only. No server.
 
-### 1. PDF Service Layer (`pdfService.ts`)
-- **PDF.js Wrapper**: Stateless service abstracting PDF.js API
-- **Text Layer Rendering**: Creates transparent DOM geometry using `renderTextLayer`
-- **PDF-Space Rectangle Caching**: Converts DOM positions to PDF user units
-- **Canvas Rendering**: HiDPI-aware page rendering with proper viewport scaling
+---
 
-```typescript
-interface PDFService {
-  loadDocument(file: File): Promise<PDFDocumentProxy>
-  renderTextLayer(pdfDoc, pageNum, scale, container): Promise<{textDivs, renderTask}>
-  buildPdfSpaceRects(textDivs: HTMLElement[], viewport): PDFRect[]
-}
-```
+## 4. Concepts and Invariants
 
-### 2. Coordinate Projection System (`coordinateProjection.ts`)
-- **PDF-Space Authority**: All coordinates stored in PDF user units
-- **Viewport Projection**: Converts PDF units to CSS pixels using current scale
-- **Alignment Utilities**: Ensures highlights stay aligned at any zoom level
+* **PDF user units (PDF-space):** Bottom-left origin coordinates from the PDF page. Canonical storage format.
+* **CSS pixels (CSS-space):** Top-left origin coordinates for DOM placement.
+* **Viewport:** `{width, height, scale, rotation}` derived from `page.getViewport({scale, rotation})`, expressed in CSS pixels at the current zoom.
+* **Alignment invariants**
 
-```typescript
-interface ProjectionSystem {
-  cssToPdfRect(cssRect: CSSRect, viewport: PageViewport): PDFRect
-  pdfToCssRect(pdfRect: PDFRect, viewport: PageViewport): CSSRect
-  createValidationCrosshairs(viewport: PageViewport): CSSRect[]
-}
-```
+  1. Page container and all overlay layers have identical `width` and `height` equal to the `Viewport`.
+  2. Overlays are absolutely positioned at `(left=0, top=0)` with no margins, borders, or padding.
+  3. Canvas manages DPR via backing store size and render transform; overlays do not include DPR math.
+  4. All overlay coordinates come from projecting **stored PDF-space** rectangles through the projector. No ad-hoc scaling.
 
-### 3. Actual React Component Tree
+---
+
+## 5. Implementation Structure
+
+### 5.1 Clean File Organization
 
 ```
-App
-├── PDFViewer
-│   ├── Canvas (PDF.js HiDPI rendering)
-│   ├── TextLayer (transparent geometry + PDF rect caching)
-│   ├── HighlightLayer (projection-based search highlights)
-│   ├── AlignmentValidator (debug crosshairs)
-│   └── Controls (zoom, navigation, debug toggle)
-├── SearchBar (debounced input + Next/Prev navigation)
-└── File Upload Interface
+src/
+├── types/
+│   └── viewport.ts         # Core types: Viewport, PdfRect, CssRect, MatchRect
+│
+├── styles/
+│   └── pageLayout.css      # Standardized CSS for viewport alignment
+│
+├── modules/                # ✨ ALL BUSINESS LOGIC LIVES HERE
+│   ├── index.ts           # Unified module API
+│   ├── projector/         # Single source of coordinate conversion
+│   │   ├── projector.ts
+│   │   ├── index.ts
+│   │   └── __tests__/
+│   │       └── projector.test.ts
+│   ├── tokenizer/         # Text tokenization
+│   │   ├── tokenizer.ts
+│   │   └── index.ts
+│   ├── matcher/           # Query matching
+│   │   ├── matcher.ts
+│   │   └── index.ts
+│   ├── geometry/          # Substring measurement
+│   │   ├── geometry.ts
+│   │   └── index.ts
+│   ├── store/            # PDF-space match storage
+│   │   ├── store.ts
+│   │   └── index.ts
+│   ├── renderer/         # Highlight painting
+│   │   ├── renderer.ts
+│   │   └── index.ts
+│   ├── controller/       # Search orchestration
+│   │   ├── controller.ts
+│   │   └── index.ts
+│   ├── textlayer_fallback/  # Fallback text positioning
+│   │   ├── textlayer_fallback.ts
+│   │   └── index.ts
+│   ├── fit_modes/        # Viewport calculations
+│   │   ├── fit_modes.ts
+│   │   └── index.ts
+│   └── diagnostics/      # Debug & performance
+│       ├── diagnostics.ts
+│       └── index.ts
+│
+├── services/
+│   └── pdfService.ts     # PDF.js wrapper (canvas & text rendering only)
+│
+├── components/           # ✨ THIN REACT WRAPPERS
+│   ├── PDFViewer/
+│   │   ├── PDFViewer.tsx       # Main viewer, uses fit_modes
+│   │   └── PDFViewer.css
+│   ├── SearchBar/
+│   │   ├── SearchBar.tsx       # Uses searchController
+│   │   └── SearchBar.css
+│   ├── TextLayer/
+│   │   ├── TextLayer.tsx       # Triggers searchController.processPageSearch
+│   │   └── TextLayer.css
+│   └── HighlightLayer/
+│       ├── HighlightLayer.tsx  # Calls renderer.paintHighlights
+│       └── HighlightLayer.css
+│
+├── App.tsx               # Main app component
+├── main.tsx             # Entry point
+└── index.css           # Global styles
 ```
 
-### 4. State Management (`textStore.ts`)
-- **Search State**: Debounced search terms and match indices
-- **PDF Rectangle Cache**: Cached PDF-space coordinates per page
-- **Controlled Navigation**: Next/Prev with auto-scroll, no auto-scroll on typing
+### 5.2 Module Responsibilities
 
-```typescript
-interface TextStore {
-  searchTerm: string
-  matchDivIndicesByPage: Record<number, number[]>
-  pdfRectsByPage: Record<number, PDFRect[]>
-  currentMatchIndex: number
-  nextMatch(): void // includes auto-scroll
-  prevMatch(): void // includes auto-scroll
-}
-```
+**Projector** (`modules/projector/`)
+* Single source of truth for PDF ↔ CSS coordinate conversion
+* Handles rotation by rotating rectangle corners and axis-aligning
+* Handles Y-axis inversion between PDF and CSS coordinate systems
+* Comprehensive unit tests for round-trip accuracy
 
-## Data Flow
+**Tokenizer** (`modules/tokenizer/`)
+* Breaks text content into tokens with precise character offsets
+* Preserves exact character mapping needed for substring measurement
+* Handles Unicode normalization and text preprocessing
 
-1. **File Upload**: User selects PDF → PDF.js loads document
-2. **Page Render**: PDF.js renders page to canvas
-3. **Text Extraction**: PDF.js extracts text with coordinates  
-4. **Annotation Processing**: Match text against keyword/URL patterns
-5. **Overlay Creation**: Generate SVG highlights positioned over canvas
-6. **User Interaction**: Toggle categories, navigate pages, zoom
+**Matcher** (`modules/matcher/`)
+* Finds query matches in tokenized text
+* Returns character-based spans for precise substring measurement
+* Supports case-insensitive and partial word matching
 
-## Technology Choices
+**Geometry** (`modules/geometry/`)
+* Measures tight rectangles around matched substrings using Range API
+* Converts CSS measurements to PDF-space using the projector
+* Handles multi-line matches and complex text layouts
 
-### PDF.js vs Alternatives
-- **Chosen**: PDF.js - Mozilla's battle-tested library
-- **Why**: Native text extraction, precise coordinates, no server needed
-- **Rejected**: PDFium (requires server), react-pdf (limited features)
+**Store** (`modules/store/`)
+* Centralized storage for PDF-space match rectangles only
+* Manages global match ordering for navigation
+* Provides subscription-based state updates
 
-### SVG vs Canvas for Annotations
-- **Chosen**: SVG overlays positioned absolutely over PDF canvas
-- **Why**: Precise positioning, CSS styling, interactive elements
-- **Alternative**: Canvas drawing (harder to style, less interactive)
+**Renderer** (`modules/renderer/`)
+* Projects stored PDF rectangles to CSS and paints highlight DOM elements
+* Handles viewport changes with repaint-only (no geometry recalculation)
+* Optimizes performance with batch DOM updates and viewport culling
 
-### State Management: Zustand
-- **Why**: Lightweight, TypeScript-friendly, simple API
-- **Alternative**: Redux (overkill), React Context (performance issues)
+**Controller** (`modules/controller/`)
+* Orchestrates the complete search pipeline: tokenize → match → measure → cache → render
+* Manages lazy processing and page-level state
+* Coordinates navigation and viewport changes
 
-## Performance Considerations
+**Additional Modules:**
+* **textlayer_fallback/**: Numeric positioning from text matrices without CSS transforms
+* **fit_modes/**: Viewport calculations for "Fit Width", "Fit Page", custom scaling
+* **diagnostics/**: Alignment validation, performance monitoring, debug tools
 
-### Client-Side Benefits
-- **No Server Load**: All processing in browser
-- **Instant Response**: No network latency for PDF operations  
-- **Privacy**: Files never leave user's device
-- **Scalability**: Scales with user's device, not server capacity
+### 5.3 Data Flow
 
-### Optimization Strategies  
-- **Lazy Loading**: Only render visible pages
-- **Worker Threads**: PDF.js uses web workers for parsing
-- **Caching**: Cache rendered pages and extracted text
-- **Virtual Scrolling**: Handle large documents efficiently
+1. **Search Input**: User enters query → SearchBar → `searchController.startNewSearch(query)`
+2. **Processing**: TextLayer → `searchController.processPageSearch(page, query, textEl, viewport, hlLayer)`
+   - Tokenizes text content
+   - Finds query matches
+   - Measures substring rectangles
+   - Converts to PDF-space coordinates
+   - Stores as `MatchRect[]` in store
+3. **Rendering**: HighlightLayer → `renderer.paintHighlights(page, viewport, rects, layer)`
+4. **Navigation**: SearchBar → `searchController.nextMatch()` / `prevMatch()`
+5. **Viewport Changes**: PDFViewer → `controller.handleViewportChange()` → repaint highlights only
 
-## Implementation Details
+### 5.4 Legacy Code Removed
 
-### PDF-Space Coordinate System (Key Innovation)
+The following files have been **completely removed** in favor of the clean module architecture:
+* ❌ `src/store/textStore.ts` → Replaced by `modules/store`
+* ❌ `src/utils/coordinateProjection.ts` → Replaced by `modules/projector`
+* ❌ `src/utils/__tests__/` → Tests moved to `modules/projector/__tests__/`
+* ❌ `src/components/Layers/` → Merged into `components/HighlightLayer`
+* ❌ `src/components/Debug/` → Replaced by `modules/diagnostics`
+* ❌ `src/types/text.ts` → Consolidated into `types/viewport.ts`
 
-The alignment solution uses **PDF user units** as the single source of truth:
+---
 
-```javascript
-// 1. Render transparent text layer with PDF.js
-const { textDivs, renderTask } = await pdfService.renderTextLayer(pdfDoc, pageNum, scale, container)
-await renderTask.promise
+## 6. Data Model (authoritative)
 
-// 2. Cache PDF-space rectangles (done once per page/scale)
-const viewport = page.getViewport({ scale, rotation })
-const pdfRects = textDivs.map(div => {
-  const cssRect = extractCssRect(div) // read DOM positions once
-  return cssToPdfRect(cssRect, viewport) // convert to PDF units
-})
+* **Viewport:** `{ width, height, scale, rotation }` (CSS px; rotation in {0,90,180,270}).
+* **PdfRect:** `[x, y, w, h]` in PDF user units, origin bottom-left.
+* **CssRect:** `[left, top, width, height]` in CSS pixels, origin top-left.
+* **MatchRect:** `{ page, termId, order, bboxPdf, sourceDivId? }`
 
-// 3. Project to CSS pixels for highlighting (done on every search)
-const cssRect = pdfToCssRect(pdfRect, viewport) // mathematical projection
-```
+  * `order` is the global ordinal used by next/prev.
+  * Only `MatchRect[]` is stored; CSS rectangles are derived per render.
 
-### Controlled Rendering Pipeline
-```javascript
-// Canvas rendering (stable, only on page/zoom changes)
-const dpr = window.devicePixelRatio || 1
-canvas.style.width = `${viewport.width}px`
-canvas.style.height = `${viewport.height}px`
-canvas.width = Math.floor(viewport.width * dpr)
-canvas.height = Math.floor(viewport.height * dpr)
+---
 
-await page.render({
-  canvasContext: context,
-  viewport,
-  transform: [dpr, 0, 0, dpr, 0, 0] // HiDPI scaling
-})
-```
+## 7. Nominal Pipeline (per page)
 
-### Search Highlight Projection
-```javascript
-// No DOM reading - pure mathematical projection
-indices.forEach((divIndex, k) => {
-  const pdfRect = pdfRects[divIndex] // cached PDF coordinates
-  const cssRect = pdfToCssRect(pdfRect, { scale }) // project to current zoom
-  
-  const highlight = document.createElement('div')
-  highlight.style.position = 'absolute'
-  highlight.style.left = `${cssRect.left}px`
-  highlight.style.top = `${cssRect.top}px`
-  highlight.style.width = `${cssRect.width}px`
-  highlight.style.height = `${cssRect.height}px`
-  highlight.style.background = 'rgba(255, 235, 59, 0.45)'
-})
-```
+1. **Tokenize**: Break `textContent` into tokens with character offsets.
+2. **Match**: Compute query match spans over tokens.
+3. **Build PDF rects**:
 
-### Alignment Validation System
-```javascript
-// Debug crosshairs at PDF page corners
-const corners = [
-  { x: 0, y: 0 },
-  { x: pageWidth/scale, y: 0 },
-  { x: 0, y: pageHeight/scale },
-  { x: pageWidth/scale, y: pageHeight/scale }
-]
+   * Measure tight substring rectangles in **CSS-space** for each span.
+   * Convert each to **PDF-space** with the projector.
+   * Persist `MatchRect[]` in the store.
+4. **Project**: On render (load/zoom/rotation), convert each `bboxPdf` to a **CSS-space** rectangle using the current `Viewport`.
+5. **Paint**: Draw absolutely positioned highlight nodes; mark the active match.
 
-corners.forEach(corner => {
-  const cssRect = pdfToCssRect({
-    x: corner.x, y: corner.y, w: 10/scale, h: 10/scale
-  }, viewport)
-  // Crosshairs should hug canvas corners at all zoom levels
-})
-```
+Navigation uses `order` to select the active match and scrolls by the projected CSS rectangle’s `top`.
 
-This architecture provides a scalable, maintainable foundation for the web version while preserving all the functionality of your PyQt application.
+---
+
+## 8. Interfaces (contracts)
+
+### 8.1 PDF Service (stateless)
+
+* `load(file) → PDFDocument`
+* `renderPage(pageNum, viewport, canvas) → Promise<void>`
+* `renderTextLayer(pageNum, viewport, container) → Promise<TextDiv[]>`
+
+### 8.2 Geometry
+
+* `measureSubstrings(div, spans) → CssRect[]` (tight rectangles per substring)
+
+### 8.3 Projector
+
+* `pdfToCss(pdfRect, viewport) → CssRect`
+* `cssToPdf(cssRect, viewport) → PdfRect`
+
+### 8.4 Store
+
+* `setMatchRects(page, rects: MatchRect[])`
+* `getMatchRects(page) → MatchRect[]`
+* `setActiveIndex(i)` / `getActiveIndex()` / `getTotalMatches()`
+
+### 8.5 Renderer
+
+* `paintHighlights(page, viewport, rects: MatchRect[], layerEl)`
+
+### 8.6 Controller
+
+* `setQuery(q)`; triggers page-level processing as text becomes available.
+* `next()` / `prev()`; updates active index and scrolls.
+
+---
+
+## 9. Operational Modes
+
+* **Initial load:** Render canvas and (when available) text layer; process visible pages first.
+* **Search:** Clear previous matches; rebuild `MatchRect[]` lazily per page.
+* **Zoom/rotation:** Recompute `Viewport`; resize page and overlays; **project and repaint only**.
+* **Fallback text layout:** When no official text layer, compute numeric `left/top/width/height` from text matrices and the `Viewport`; avoid CSS transforms for positions used by code.
+
+---
+
+## 10. Performance and Resource Strategy
+
+* Lazy processing by viewport visibility.
+* O(N) repaint: project and paint only the visible page’s rectangles on zoom/rotation.
+* Batch DOM insertions with fragments to cut layout thrash.
+* Cache rendered canvases; discard far-off pages.
+
+---
+
+## 11. Reliability and Observability
+
+* **Alignment validator:** Project page corners and a sample `MatchRect`; verify no drift across zoom/rotation.
+* **Counters:** Pages processed, rectangles per page, total matches, active index.
+* **Errors:** Surface PDF.js load/render failures and empty-match states in the UI.
+
+---
+
+## 12. Security and Privacy
+
+* No network I/O for files; PDFs remain local to the browser session.
+* No persistent storage of content unless the user exports.
+
+---
+
+## 13. Verification & Validation
+
+### Unit
+
+* **Projector round-trip:** CSS→PDF→CSS within ≤0.5 px across scales 0.75×–2× and rotations 0/90/180/270.
+* **Substring measurement:** Tight coverage of matched glyphs; multi-run spans yield multiple rectangles.
+* **Store semantics:** Order preservation; wraparound navigation.
+
+### Integration
+
+* **Alignment:** Highlights remain registered at 50%–300% zoom and all rotations.
+* **Navigation:** Next/prev traverses all matches across pages and keeps the active match centered.
+* **Fallback parity:** Fallback text layout matches official layer within 1 px.
+
+---
+
+## 14. Key Risks and Mitigations
+
+* **Mixed index spaces:** Only use per-match rectangles; remove DIV-based indexing.
+* **Transform side effects:** Do not rely on CSS transforms for geometry the code reads; compute numeric positions.
+* **Partial rotation support:** All conversions go through the single projector that handles rotation and Y-flip.
+
+---
+
+## 15. Glossary
+
+* **PDF-space:** Coordinates in PDF user units with bottom-left origin.
+* **CSS-space:** Coordinates in CSS pixels with top-left origin.
+* **Viewport:** The page’s size and transform at current zoom/rotation.
+* **Per-match rectangle:** Tight box around a matched substring, possibly multiple per line.
+
+---
+
+This architecture fixes alignment at all zoom levels, keeps data flow simple, and isolates responsibilities for reliable maintenance and testing.
