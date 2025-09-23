@@ -16,9 +16,17 @@ export type CssRect = [number, number, number, number]; // [left, top, width, he
 export interface MatchRect {
   page: number;
   termId: string;
-  order: number;            // global ordinal for next/prev navigation
-  bboxPdf: PdfRect;         // PDF-space coordinates (authoritative)
-  sourceDivId?: string;     // optional hint for scrolling
+  order: number;
+  bboxPdf: PdfRect;
+  sourceDivId?: string;
+}
+
+export interface TextItem {
+  str: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 // Token and span types for text processing

@@ -69,15 +69,48 @@ const TextLayer: React.FC<TextLayerProps> = ({
     const stats = searchController.getSearchStats();
     if (!stats.query.trim()) return;
     
-    // Process search for this page
-    searchController.processPageSearch(
-      pageNum,
-      stats.query,
-      textLayerRef.current,
-      viewport,
-      highlightLayerRef.current
-    );
+    console.log(`TextLayer: Processing search for page ${pageNum}, query: "${stats.query}"`);
     
+    // Add a small delay to ensure text layer is fully rendered
+    const timeoutId = setTimeout(() => {
+      if (textLayerRef.current && highlightLayerRef.current) {
+        searchController.processPageSearch(
+          pageNum,
+          stats.query,
+          textLayerRef.current,
+          viewport,
+          highlightLayerRef.current
+        );
+      }
+    }, 100);
+    
+    return () => clearTimeout(timeoutId);
+    
+  }, [pageNum, viewport, textLayerRef, highlightLayerRef]);
+
+  // Subscribe to search controller changes to trigger processing
+  useEffect(() => {
+    const unsubscribe = searchController.subscribe((stats) => {
+      if (!textLayerRef.current || !highlightLayerRef.current) return;
+      if (!stats.query.trim()) return;
+      
+      console.log(`TextLayer: Search changed for page ${pageNum}, query: "${stats.query}"`);
+      
+      // Process search when query changes
+      setTimeout(() => {
+        if (textLayerRef.current && highlightLayerRef.current) {
+          searchController.processPageSearch(
+            pageNum,
+            stats.query,
+            textLayerRef.current,
+            viewport,
+            highlightLayerRef.current
+          );
+        }
+      }, 100);
+    });
+    
+    return unsubscribe;
   }, [pageNum, viewport, textLayerRef, highlightLayerRef]);
 
   return (

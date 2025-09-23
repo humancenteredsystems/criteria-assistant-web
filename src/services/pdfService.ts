@@ -7,8 +7,7 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 // We intentionally do NOT use TextLayerBuilder (API changed). We rely on renderTextLayer (v4/5) and a manual fallback.
 
-import { TextItem } from '../types/text';
-import { PDFRect, extractCssRect, cssToPdfRect, PageViewport as ProjectionViewport } from '../utils/coordinateProjection';
+import { TextItem, Viewport } from '../types/viewport';
 
 // PDF.js v5.x type definitions
 interface PDFDocumentProxy {
@@ -216,22 +215,6 @@ export class PDFService {
     return { textDivs, renderTask: mockRenderTask };
   }
 
-  /**
-   * Build PDF-space rectangles from text divs after text layer rendering
-   * This is done once per page to cache PDF coordinates for alignment
-   */
-  buildPdfSpaceRects(textDivs: HTMLElement[], viewport: PageViewport): PDFRect[] {
-    return textDivs.map(div => {
-      const cssRect = extractCssRect(div);
-      // include rotation when caching saved rects
-      return cssToPdfRect(cssRect, { 
-        width: viewport.width, 
-        height: viewport.height, 
-        scale: (viewport as any).scale || 1,
-        rotation: (viewport as any).rotation || 0
-      } as ProjectionViewport);
-    });
-  }
 }
 
 export default new PDFService();
