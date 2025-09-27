@@ -73,8 +73,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, overlayOpacity }) => {
         
         // Get page and viewport for coordinate system setup
         const page = await pdfDoc.getPage(currentPage);
-        const rotation = page.rotate || 0;
-        const viewport = page.getViewport({ scale, rotation });
+        const viewport = page.getViewport({ scale });
         
         // Lock the page wrapper to the PDF viewport size
         const pageEl = pageElRef.current;
@@ -121,8 +120,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, overlayOpacity }) => {
         setCurrentViewport({
           width: viewport.width,
           height: viewport.height,
-          scale: viewport.scale,
-          rotation: (rotation as 0 | 90 | 180 | 270) || 0
+          scale: viewport.scale
         });
         
         // Set up text layer positioning
@@ -187,7 +185,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, overlayOpacity }) => {
     
     try {
       const page = await pdfDoc.getPage(currentPage);
-      const baseViewport = page.getViewport({ scale: 1.0, rotation: page.rotate || 0 });
+      const baseViewport = page.getViewport({ scale: 1.0 });
       const containerWidth = pageElRef.current.parentElement?.clientWidth || 800;
       
       // Calculate scale to fit page width to container width (with some padding)
@@ -207,7 +205,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, overlayOpacity }) => {
     
     try {
       const page = await pdfDoc.getPage(currentPage);
-      const baseViewport = page.getViewport({ scale: 1.0, rotation: page.rotate || 0 });
+      const baseViewport = page.getViewport({ scale: 1.0 });
       const container = pageElRef.current.parentElement;
       
       if (!container) return;

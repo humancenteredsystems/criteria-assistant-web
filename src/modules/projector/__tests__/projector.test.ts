@@ -1,24 +1,21 @@
 // Unit tests for the projector module
-// Tests round-trip accuracy at various scales and rotations
+// Tests round-trip accuracy at various scales
 
 import { describe, it, expect } from 'vitest';
 import { pdfToCss, cssToPdf, createValidationCrosshairs } from '../projector';
 import { Viewport, PdfRect, CssRect } from '../../../types/viewport';
 
 describe('Projector', () => {
-  // Test viewports at different scales and rotations
+  // Test viewports at different scales
   const testViewports: Viewport[] = [
-    { width: 800, height: 600, scale: 0.5, rotation: 0 },
-    { width: 800, height: 600, scale: 0.75, rotation: 0 },
-    { width: 800, height: 600, scale: 1.0, rotation: 0 },
-    { width: 800, height: 600, scale: 1.5, rotation: 0 },
-    { width: 800, height: 600, scale: 2.0, rotation: 0 },
-    { width: 800, height: 600, scale: 3.0, rotation: 0 },
-    { width: 800, height: 600, scale: 1.0, rotation: 90 },
-    { width: 800, height: 600, scale: 1.0, rotation: 180 },
-    { width: 800, height: 600, scale: 1.0, rotation: 270 },
-    { width: 600, height: 800, scale: 1.5, rotation: 90 },
-    { width: 600, height: 800, scale: 2.0, rotation: 180 },
+    { width: 800, height: 600, scale: 0.5 },
+    { width: 800, height: 600, scale: 0.75 },
+    { width: 800, height: 600, scale: 1.0 },
+    { width: 800, height: 600, scale: 1.5 },
+    { width: 800, height: 600, scale: 2.0 },
+    { width: 800, height: 600, scale: 3.0 },
+    { width: 600, height: 800, scale: 1.5 },
+    { width: 600, height: 800, scale: 2.0 },
   ];
 
   // Test rectangles in PDF space
@@ -37,7 +34,7 @@ describe('Projector', () => {
   describe('Round-trip accuracy', () => {
     testViewports.forEach((viewport, vIndex) => {
       testRects.forEach((pdfRect, rIndex) => {
-        it(`should maintain accuracy for viewport ${vIndex} rect ${rIndex} (scale: ${viewport.scale}, rotation: ${viewport.rotation})`, () => {
+        it(`should maintain accuracy for viewport ${vIndex} rect ${rIndex} (scale: ${viewport.scale})`, () => {
           // PDF → CSS → PDF round trip
           const cssRect = pdfToCss(pdfRect, viewport);
           const roundTripPdfRect = cssToPdf(cssRect, viewport);
@@ -54,8 +51,8 @@ describe('Projector', () => {
   });
 
   describe('Y-axis inversion', () => {
-    it('should correctly invert Y-axis for non-rotated viewport', () => {
-      const viewport: Viewport = { width: 800, height: 600, scale: 1.0, rotation: 0 };
+    it('should correctly invert Y-axis for viewport', () => {
+      const viewport: Viewport = { width: 800, height: 600, scale: 1.0 };
       const pdfRect: PdfRect = [100, 100, 50, 30]; // 100 units from bottom, 30 high
       
       const cssRect = pdfToCss(pdfRect, viewport);
@@ -68,7 +65,7 @@ describe('Projector', () => {
     });
 
     it('should correctly invert Y-axis with scaling', () => {
-      const viewport: Viewport = { width: 1600, height: 1200, scale: 2.0, rotation: 0 };
+      const viewport: Viewport = { width: 1600, height: 1200, scale: 2.0 };
       const pdfRect: PdfRect = [50, 50, 25, 15]; // 50 units from bottom, 15 high
       
       const cssRect = pdfToCss(pdfRect, viewport);
@@ -83,7 +80,7 @@ describe('Projector', () => {
 
   describe('Scaling', () => {
     it('should scale coordinates correctly', () => {
-      const viewport: Viewport = { width: 1200, height: 900, scale: 1.5, rotation: 0 };
+      const viewport: Viewport = { width: 1200, height: 900, scale: 1.5 };
       const pdfRect: PdfRect = [100, 200, 50, 30];
       
       const cssRect = pdfToCss(pdfRect, viewport);
@@ -96,7 +93,7 @@ describe('Projector', () => {
 
   describe('Edge cases', () => {
     it('should handle zero-size rectangles', () => {
-      const viewport: Viewport = { width: 800, height: 600, scale: 1.0, rotation: 0 };
+      const viewport: Viewport = { width: 800, height: 600, scale: 1.0 };
       const pdfRect: PdfRect = [100, 100, 0, 0];
       
       const cssRect = pdfToCss(pdfRect, viewport);
@@ -109,7 +106,7 @@ describe('Projector', () => {
     });
 
     it('should handle negative coordinates', () => {
-      const viewport: Viewport = { width: 800, height: 600, scale: 1.0, rotation: 0 };
+      const viewport: Viewport = { width: 800, height: 600, scale: 1.0 };
       const pdfRect: PdfRect = [-50, -30, 100, 60];
       
       const cssRect = pdfToCss(pdfRect, viewport);
@@ -123,7 +120,7 @@ describe('Projector', () => {
 
   describe('Validation crosshairs', () => {
     it('should create crosshairs at page corners', () => {
-      const viewport: Viewport = { width: 800, height: 600, scale: 1.0, rotation: 0 };
+      const viewport: Viewport = { width: 800, height: 600, scale: 1.0 };
       const crosshairs = createValidationCrosshairs(viewport);
       
       expect(crosshairs).toHaveLength(4);
@@ -139,7 +136,7 @@ describe('Projector', () => {
     });
 
     it('should scale crosshairs with viewport', () => {
-      const viewport: Viewport = { width: 1600, height: 1200, scale: 2.0, rotation: 0 };
+      const viewport: Viewport = { width: 1600, height: 1200, scale: 2.0 };
       const crosshairs = createValidationCrosshairs(viewport);
       
       expect(crosshairs).toHaveLength(4);
@@ -150,34 +147,4 @@ describe('Projector', () => {
     });
   });
 
-  describe('Rotation handling', () => {
-    it('should handle 90-degree rotation', () => {
-      const viewport: Viewport = { width: 800, height: 600, scale: 1.0, rotation: 90 };
-      const pdfRect: PdfRect = [100, 100, 50, 30];
-      
-      const cssRect = pdfToCss(pdfRect, viewport);
-      const roundTrip = cssToPdf(cssRect, viewport);
-      
-      // Round trip should be close to original
-      const tolerance = 1.0; // Slightly higher tolerance for rotation
-      expect(Math.abs(roundTrip[0] - pdfRect[0])).toBeLessThanOrEqual(tolerance);
-      expect(Math.abs(roundTrip[1] - pdfRect[1])).toBeLessThanOrEqual(tolerance);
-      expect(Math.abs(roundTrip[2] - pdfRect[2])).toBeLessThanOrEqual(tolerance);
-      expect(Math.abs(roundTrip[3] - pdfRect[3])).toBeLessThanOrEqual(tolerance);
-    });
-
-    it('should handle 180-degree rotation', () => {
-      const viewport: Viewport = { width: 800, height: 600, scale: 1.0, rotation: 180 };
-      const pdfRect: PdfRect = [100, 100, 50, 30];
-      
-      const cssRect = pdfToCss(pdfRect, viewport);
-      const roundTrip = cssToPdf(cssRect, viewport);
-      
-      const tolerance = 1.0;
-      expect(Math.abs(roundTrip[0] - pdfRect[0])).toBeLessThanOrEqual(tolerance);
-      expect(Math.abs(roundTrip[1] - pdfRect[1])).toBeLessThanOrEqual(tolerance);
-      expect(Math.abs(roundTrip[2] - pdfRect[2])).toBeLessThanOrEqual(tolerance);
-      expect(Math.abs(roundTrip[3] - pdfRect[3])).toBeLessThanOrEqual(tolerance);
-    });
-  });
 });

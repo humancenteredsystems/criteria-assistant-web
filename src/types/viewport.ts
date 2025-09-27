@@ -5,7 +5,6 @@ export interface Viewport {
   width: number;    // CSS pixels at current scale
   height: number;   // CSS pixels at current scale  
   scale: number;    // zoom factor (1.0 = 100%)
-  rotation: 0 | 90 | 180 | 270;  // rotation in degrees
 }
 
 // Rectangle types for the unified data model

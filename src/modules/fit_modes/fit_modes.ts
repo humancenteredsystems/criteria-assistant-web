@@ -19,24 +19,19 @@ interface PageDimensions {
  */
 export function calculateFitWidth(
   pageDimensions: PageDimensions,
-  containerDimensions: ContainerDimensions,
-  rotation: 0 | 90 | 180 | 270 = 0
+  containerDimensions: ContainerDimensions
 ): Viewport {
-  // Adjust page dimensions for rotation
-  const rotatedPage = getRotatedDimensions(pageDimensions, rotation);
-  
   // Calculate scale to fit width
-  const scale = containerDimensions.width / rotatedPage.width;
+  const scale = containerDimensions.width / pageDimensions.width;
   
   // Calculate final viewport dimensions
-  const width = rotatedPage.width * scale;
-  const height = rotatedPage.height * scale;
+  const width = pageDimensions.width * scale;
+  const height = pageDimensions.height * scale;
   
   return {
     width,
     height,
-    scale,
-    rotation
+    scale
   };
 }
 
@@ -46,26 +41,21 @@ export function calculateFitWidth(
  */
 export function calculateFitPage(
   pageDimensions: PageDimensions,
-  containerDimensions: ContainerDimensions,
-  rotation: 0 | 90 | 180 | 270 = 0
+  containerDimensions: ContainerDimensions
 ): Viewport {
-  // Adjust page dimensions for rotation
-  const rotatedPage = getRotatedDimensions(pageDimensions, rotation);
-  
   // Calculate scale to fit both width and height
-  const scaleX = containerDimensions.width / rotatedPage.width;
-  const scaleY = containerDimensions.height / rotatedPage.height;
+  const scaleX = containerDimensions.width / pageDimensions.width;
+  const scaleY = containerDimensions.height / pageDimensions.height;
   const scale = Math.min(scaleX, scaleY);
   
   // Calculate final viewport dimensions
-  const width = rotatedPage.width * scale;
-  const height = rotatedPage.height * scale;
+  const width = pageDimensions.width * scale;
+  const height = pageDimensions.height * scale;
   
   return {
     width,
     height,
-    scale,
-    rotation
+    scale
   };
 }
 
@@ -75,41 +65,17 @@ export function calculateFitPage(
  */
 export function calculateCustomScale(
   pageDimensions: PageDimensions,
-  scale: number,
-  rotation: 0 | 90 | 180 | 270 = 0
+  scale: number
 ): Viewport {
-  // Adjust page dimensions for rotation
-  const rotatedPage = getRotatedDimensions(pageDimensions, rotation);
-  
   // Calculate final viewport dimensions
-  const width = rotatedPage.width * scale;
-  const height = rotatedPage.height * scale;
+  const width = pageDimensions.width * scale;
+  const height = pageDimensions.height * scale;
   
   return {
     width,
     height,
-    scale,
-    rotation
+    scale
   };
-}
-
-/**
- * Get page dimensions adjusted for rotation
- */
-function getRotatedDimensions(
-  pageDimensions: PageDimensions,
-  rotation: 0 | 90 | 180 | 270
-): PageDimensions {
-  if (rotation === 90 || rotation === 270) {
-    // Swap width and height for 90/270 degree rotations
-    return {
-      width: pageDimensions.height,
-      height: pageDimensions.width
-    };
-  }
-  
-  // No change for 0/180 degree rotations
-  return pageDimensions;
 }
 
 /**
@@ -163,8 +129,7 @@ export function validateViewport(viewport: Viewport): boolean {
     viewport.width > 0 &&
     viewport.height > 0 &&
     viewport.scale > 0 &&
-    viewport.scale <= 10 && // Reasonable maximum
-    [0, 90, 180, 270].includes(viewport.rotation)
+    viewport.scale <= 10 // Reasonable maximum
   );
 }
 
