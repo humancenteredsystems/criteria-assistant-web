@@ -51,12 +51,15 @@ function measureSingleSubstring(
         range.setEnd(textNode, relativeEnd);
         
         const domRect = range.getBoundingClientRect();
-        const elementRect = element.getBoundingClientRect();
         
-        // Convert to element-relative coordinates
+        // Find the page container to get page-relative coordinates
+        const pageContainer = findPageContainer(element);
+        const pageRect = pageContainer ? pageContainer.getBoundingClientRect() : { left: 0, top: 0 };
+        
+        // Convert to page-relative coordinates (not element-relative)
         const cssRect: CssRect = [
-          domRect.left - elementRect.left,
-          domRect.top - elementRect.top,
+          domRect.left - pageRect.left,
+          domRect.top - pageRect.top,
           domRect.width,
           domRect.height
         ];
@@ -105,15 +108,22 @@ function measureWithElementFallback(
     const precedingText = textContent.substring(0, startIndex);
     const precedingWidth = ctx.measureText(precedingText).width;
     
-    // Get element positioning
+    // Get element positioning relative to page container
     const elementRect = element.getBoundingClientRect();
+    const pageContainer = findPageContainer(element);
+    const pageRect = pageContainer ? pageContainer.getBoundingClientRect() : { left: 0, top: 0 };
+    
     const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
     const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
     
+    // Calculate page-relative position
+    const elementLeft = elementRect.left - pageRect.left;
+    const elementTop = elementRect.top - pageRect.top;
+    
     // Estimate rectangle (this is approximate)
     const cssRect: CssRect = [
-      paddingLeft + precedingWidth,
-      paddingTop,
+      elementLeft + paddingLeft + precedingWidth,
+      elementTop + paddingTop,
       metrics.width,
       fontSize * 1.2 // Approximate line height
     ];
@@ -209,13 +219,16 @@ export function measureMultiLineSubstring(
     
     // Get all client rectangles (one per line)
     const clientRects = range.getClientRects();
-    const elementRect = element.getBoundingClientRect();
+    
+    // Find the page container to get page-relative coordinates
+    const pageContainer = findPageContainer(element);
+    const pageRect = pageContainer ? pageContainer.getBoundingClientRect() : { left: 0, top: 0 };
     
     for (let i = 0; i < clientRects.length; i++) {
       const domRect = clientRects[i];
       const cssRect: CssRect = [
-        domRect.left - elementRect.left,
-        domRect.top - elementRect.top,
+        domRect.left - pageRect.left,
+        domRect.top - pageRect.top,
         domRect.width,
         domRect.height
       ];
@@ -248,6 +261,24 @@ export function extractElementRect(element: HTMLElement): CssRect {
   const height = parseFloat(style.height) || element.offsetHeight;
   
   return [left, top, width, height];
+}
+
+/**
+ * Find the page container element that serves as the coordinate reference
+ * Looks for the element with class "page" or data-page attribute
+ */
+function findPageContainer(element: HTMLElement): HTMLElement | null {
+  let current: HTMLElement | null = element;
+  
+  while (current) {
+    // Look for the page container (has class "page" or data-page attribute)
+    if (current.classList.contains('page') || current.hasAttribute('data-page')) {
+      return current;
+    }
+    current = current.parentElement;
+  }
+  
+  return null;
 }
 
 /**
