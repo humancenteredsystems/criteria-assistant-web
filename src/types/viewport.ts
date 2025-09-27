@@ -1,10 +1,14 @@
 // Viewport type definition for the refactored architecture
-// This replaces the PageViewport interface and standardizes viewport handling
+// Enhanced to include PDF.js PageViewport for coordinate conversion
+
+import type { PageViewport } from 'pdfjs-dist/types/src/display/display_utils';
 
 export interface Viewport {
   width: number;    // CSS pixels at current scale
   height: number;   // CSS pixels at current scale  
   scale: number;    // zoom factor (1.0 = 100%)
+  // Enhanced: Include original PDF.js viewport for coordinate conversion
+  originalViewport?: PageViewport;
 }
 
 // Rectangle types for the unified data model

@@ -1,11 +1,11 @@
 // Single authoritative projector for PDF-space ↔ CSS-space coordinate conversion
-// Replaces all ad-hoc coordinate math with one tested, reliable implementation
+// Enhanced to use PDF.js built-in coordinate conversion when available
 
 import { Viewport, PdfRect, CssRect } from '../../types/viewport';
 
 /**
  * Convert PDF user units to CSS pixels with proper Y-axis inversion
- * This is used every time we need to draw highlights at the current zoom level
+ * Uses PDF.js built-in coordinate conversion when available, falls back to manual calculation
  * 
  * PDF coordinates: origin at bottom-left, Y increases upward  
  * CSS coordinates: origin at top-left, Y increases downward
@@ -13,7 +13,20 @@ import { Viewport, PdfRect, CssRect } from '../../types/viewport';
 export function pdfToCss(bboxPdf: PdfRect, viewport: Viewport): CssRect {
   const [pdfX, pdfY, pdfW, pdfH] = bboxPdf;
   
-  // Handle Y-axis inversion: CSS Y = viewport.height - (PDF Y * scale + PDF height * scale)
+  // Use PDF.js built-in coordinate conversion when available
+  if (viewport.originalViewport) {
+    const [cssLeft, cssTop] = viewport.originalViewport.convertToViewportPoint(pdfX, pdfY);
+    const [cssRight, cssBottom] = viewport.originalViewport.convertToViewportPoint(pdfX + pdfW, pdfY + pdfH);
+    
+    return [
+      cssLeft,
+      Math.min(cssTop, cssBottom), // Ensure top is the smaller Y value
+      cssRight - cssLeft,
+      Math.abs(cssBottom - cssTop)
+    ];
+  }
+  
+  // Fallback to manual calculation for backward compatibility
   const cssLeft = pdfX * viewport.scale;
   const cssTop = viewport.height - (pdfY * viewport.scale + pdfH * viewport.scale);
   const cssWidth = pdfW * viewport.scale;
@@ -24,7 +37,7 @@ export function pdfToCss(bboxPdf: PdfRect, viewport: Viewport): CssRect {
 
 /**
  * Convert CSS pixels to PDF user units with proper Y-axis inversion
- * This is done once after text layer rendering to cache PDF-space rectangles
+ * Uses PDF.js built-in coordinate conversion when available, falls back to manual calculation
  * 
  * CSS coordinates: origin at top-left, Y increases downward
  * PDF coordinates: origin at bottom-left, Y increases upward
@@ -32,7 +45,20 @@ export function pdfToCss(bboxPdf: PdfRect, viewport: Viewport): CssRect {
 export function cssToPdf(cssRect: CssRect, viewport: Viewport): PdfRect {
   const [cssLeft, cssTop, cssWidth, cssHeight] = cssRect;
   
-  // Handle Y-axis inversion: PDF Y = (viewport.height - (CSS Y + CSS height)) / scale
+  // Use PDF.js built-in coordinate conversion when available
+  if (viewport.originalViewport) {
+    const [pdfX1, pdfY1] = viewport.originalViewport.convertToPdfPoint(cssLeft, cssTop);
+    const [pdfX2, pdfY2] = viewport.originalViewport.convertToPdfPoint(cssLeft + cssWidth, cssTop + cssHeight);
+    
+    return [
+      Math.min(pdfX1, pdfX2),
+      Math.min(pdfY1, pdfY2),
+      Math.abs(pdfX2 - pdfX1),
+      Math.abs(pdfY2 - pdfY1)
+    ];
+  }
+  
+  // Fallback to manual calculation for backward compatibility
   const pdfX = cssLeft / viewport.scale;
   const pdfY = (viewport.height - (cssTop + cssHeight)) / viewport.scale;
   const pdfW = cssWidth / viewport.scale;

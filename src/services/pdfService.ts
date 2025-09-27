@@ -1,54 +1,21 @@
-// PDF Service: wrapper around PDF.js with proper Vite configuration
+// PDF Service: wrapper around PDF.js v5 with proper Vite configuration
 import * as pdfjsLib from 'pdfjs-dist';
+import { TextLayer } from 'pdfjs-dist';
+import type { 
+  PDFDocumentProxy, 
+  PDFPageProxy, 
+  RenderTask,
+  TextContent,
+  TextItem as PDFTextItem,
+  RenderParameters as PDFRenderParameters
+} from 'pdfjs-dist/types/src/display/api';
+import type { PageViewport } from 'pdfjs-dist/types/src/display/display_utils';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 // Configure worker for Vite - use ES module worker URL
-(pdfjsLib as any).GlobalWorkerOptions.workerSrc = workerUrl;
-
-// We intentionally do NOT use TextLayerBuilder (API changed). We rely on renderTextLayer (v4/5) and a manual fallback.
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
 import { TextItem, Viewport } from '../types/viewport';
-
-// PDF.js v5.x type definitions
-interface PDFDocumentProxy {
-  numPages: number;
-  getPage(pageNumber: number): Promise<PDFPageProxy>;
-}
-
-interface PDFPageProxy {
-  getViewport(params: { scale: number; rotation?: number }): PageViewport;
-  render(params: RenderParameters): RenderTask;
-  getTextContent(): Promise<TextContent>;
-  rotate?: number;
-}
-
-interface PageViewport {
-  width: number;
-  height: number;
-}
-
-interface RenderParameters {
-  canvasContext: CanvasRenderingContext2D;
-  viewport: PageViewport;
-  transform?: number[];
-}
-
-interface RenderTask {
-  promise: Promise<void>;
-  cancel(): void;
-}
-
-interface TextContent {
-  items: TextContentItem[];
-}
-
-interface TextContentItem {
-  str: string;
-  transform: number[];
-  width?: number;
-  height?: number;
-  fontName?: string;
-}
 
 export class PDFService {
   // 🔥 SINGLETON FIX: Make service stateless - no shared pdfDoc state
@@ -92,6 +59,7 @@ export class PDFService {
     
     const renderTask = page.render({
       canvasContext: context,
+      canvas,
       viewport,
       transform: [dpr, 0, 0, dpr, 0, 0]
     });
@@ -106,31 +74,33 @@ export class PDFService {
     }
     const page = await pdfDoc.getPage(pageNum);
     const textContent = await page.getTextContent();
-    return textContent.items.map((item: TextContentItem) => {
-      const transform = item.transform;
-      return {
-        str: item.str,
-        x: transform[4],
-        y: transform[5],
-        width: item.width || 0,
-        height: item.height || 0
-      };
-    });
+    return textContent.items
+      .filter((item): item is PDFTextItem => 'str' in item) // Filter out TextMarkedContent
+      .map((item: PDFTextItem) => {
+        const transform = item.transform;
+        return {
+          str: item.str,
+          x: transform[4],
+          y: transform[5],
+          width: item.width || 0,
+          height: item.height || 0
+        };
+      });
   }
 
-  // Render text layer using PDF.js v5.x compatible approach
+  // Render text layer using PDF.js v5.x TextLayer class
   async renderTextLayer(
     pdfDoc: PDFDocumentProxy,
     pageNum: number,
     scale: number,
     container: HTMLElement
-  ): Promise<{ textDivs: HTMLElement[]; renderTask: RenderTask | { promise: Promise<void>; cancel: () => void } }> {
+  ): Promise<{ textDivs: HTMLElement[]; renderTask: { promise: Promise<void>; cancel: () => void } }> {
     if (!pdfDoc) {
       throw new Error('PDF document not provided');
     }
+    
     const page = await pdfDoc.getPage(pageNum);
-    const rotation = page.rotate || 0;
-    const viewport = page.getViewport({ scale, rotation });
+    const viewport = page.getViewport({ scale }); // No rotation for now
     const textContent = await page.getTextContent();
     
     // Clear container and set exact dimensions to match viewport
@@ -141,78 +111,33 @@ export class PDFService {
     container.style.width = `${viewport.width}px`;
     container.style.height = `${viewport.height}px`;
     
-    const textDivs: HTMLElement[] = [];
-    
-    // Prefer official renderTextLayer if present (PDF.js v4/5)
-    const renderTextLayerFn = (pdfjsLib as any).renderTextLayer;
-    if (renderTextLayerFn && typeof renderTextLayerFn === 'function') {
-      try {
-        // Single, stable path ─ no builder
-        // NOTE: renderTextLayer returns a task with { promise, cancel }
-        const renderTask = renderTextLayerFn({
-          textContent,
-          container,
-          viewport,
-          textDivs,
-        });
-        return { textDivs, renderTask };
-      } catch (error) {
-        console.warn('renderTextLayer failed, using manual text layer:', error);
-      }
+    try {
+      console.log(`PDFService: Using PDF.js v5 TextLayer class for page ${pageNum}`);
+      
+      // PDF.js v5 TextLayer class API
+      const textLayer = new TextLayer({
+        textContentSource: textContent,
+        container,
+        viewport,
+      });
+      
+      // Render the text layer
+      const renderPromise = textLayer.render();
+      
+      // Create a compatible render task interface
+      const renderTask = {
+        promise: renderPromise,
+        cancel: () => textLayer.cancel()
+      };
+      
+      return { 
+        textDivs: textLayer.textDivs, 
+        renderTask 
+      };
+    } catch (error) {
+      console.error('PDF.js TextLayer failed:', error);
+      throw new Error(`Failed to render text layer for page ${pageNum}: ${error}`);
     }
-
-    // Manual fallback (DOM-only geometry; glyphs hidden by CSS in the app)
-    // IMPORTANT: No CSS transforms - compute final positions numerically to match extractCssRect behavior
-    
-    textContent.items.forEach((item: any, index: number) => {
-      const div = document.createElement('div');
-      div.textContent = item.str;
-      
-      // Use PDF.js transform matrix for positioning
-      const transform = item.transform;
-      const pdfX = transform[4];
-      const pdfY = transform[5];
-      const baseWidth = item.width || 0;
-      const baseHeight = item.height || 12;
-      
-      // Apply scaling from transform matrix numerically (no CSS transform)
-      const scaleX = transform[0];
-      const scaleY = transform[3];
-      const finalWidth = baseWidth * Math.abs(scaleX);
-      const finalHeight = baseHeight * Math.abs(scaleY);
-      
-      // Convert PDF coordinates to CSS coordinates (PDF origin is bottom-left, CSS is top-left)
-      // Account for scaling in the coordinate conversion
-      const cssX = pdfX;
-      const cssY = viewport.height - pdfY - finalHeight;
-      
-      // Set final computed positions directly (no transforms)
-      div.style.position = 'absolute';
-      div.style.left = `${cssX}px`;
-      div.style.top = `${cssY}px`;
-      div.style.width = `${finalWidth}px`;
-      div.style.height = `${finalHeight}px`;
-      div.style.fontSize = `${finalHeight}px`;
-      div.style.fontFamily = item.fontName || 'sans-serif';
-      div.style.whiteSpace = 'pre';
-      div.style.pointerEvents = 'none';
-      div.style.userSelect = 'none';
-      div.style.lineHeight = '1';
-      
-      // No CSS transforms - all scaling is baked into the computed positions
-      
-      container.appendChild(div);
-      textDivs.push(div);
-    });
-    
-    // Create a mock render task that resolves immediately
-    const mockRenderTask = {
-      promise: Promise.resolve(),
-      cancel: () => {}
-    };
-
-    console.log(`PDFService: Created ${textDivs.length} text divs for page ${pageNum}`);
-    return { textDivs, renderTask: mockRenderTask };
   }
 
 }

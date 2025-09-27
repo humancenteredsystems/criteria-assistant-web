@@ -30,14 +30,6 @@ export {
 // Main controller - orchestrates the complete pipeline
 export { searchController } from './controller';
 
-// Fallback text layer for PDFs without official text layers
-export { 
-  createFallbackTextLayer, 
-  updateFallbackTextLayer, 
-  extractFallbackTextContent,
-  validateFallbackPositioning,
-  needsFallbackTextLayer
-} from './textlayer_fallback';
 
 // Fit modes and viewport calculations
 export { 

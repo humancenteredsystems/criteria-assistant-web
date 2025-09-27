@@ -120,7 +120,8 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, overlayOpacity }) => {
         setCurrentViewport({
           width: viewport.width,
           height: viewport.height,
-          scale: viewport.scale
+          scale: viewport.scale,
+          originalViewport: viewport // Include original PDF.js viewport for coordinate conversion
         });
         
         // Set up text layer positioning
