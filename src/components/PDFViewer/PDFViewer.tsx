@@ -21,6 +21,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, overlayOpacity }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [scale, setScale] = useState(1.0);
   const [currentViewport, setCurrentViewport] = useState<Viewport | null>(null);
+  const [currentPdfViewport, setCurrentPdfViewport] = useState<any>(null); // Store the original PDF.js viewport
   const [isDocumentLoaded, setIsDocumentLoaded] = useState(false);
   const [pdfDoc, setPdfDoc] = useState<any>(null); // 🔥 SINGLETON FIX: Store document in component state
   const [error, setError] = useState<string | null>(null); // 🔥 ERROR HANDLING: Add error state
@@ -116,7 +117,8 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, overlayOpacity }) => {
 
         if (cancelled) return;
         
-        // Store the current viewport for use by child components
+        // Store both the original PDF.js viewport and our custom viewport
+        setCurrentPdfViewport(viewport);
         setCurrentViewport({
           width: viewport.width,
           height: viewport.height,

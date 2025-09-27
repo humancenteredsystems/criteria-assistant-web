@@ -36,7 +36,7 @@ const TextLayer: React.FC<TextLayerProps> = ({
         const { renderTask: task } = await pdfService.renderTextLayer(
           pdfDoc,
           pageNum,
-          viewport.scale,
+          viewport.originalViewport!,
           container
         );
         renderTask = task;

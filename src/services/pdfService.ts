@@ -92,7 +92,7 @@ export class PDFService {
   async renderTextLayer(
     pdfDoc: PDFDocumentProxy,
     pageNum: number,
-    scale: number,
+    viewport: PageViewport,
     container: HTMLElement
   ): Promise<{ textDivs: HTMLElement[]; renderTask: { promise: Promise<void>; cancel: () => void } }> {
     if (!pdfDoc) {
@@ -100,7 +100,6 @@ export class PDFService {
     }
     
     const page = await pdfDoc.getPage(pageNum);
-    const viewport = page.getViewport({ scale }); // No rotation for now
     const textContent = await page.getTextContent();
     
     // Clear container and set exact dimensions to match viewport
