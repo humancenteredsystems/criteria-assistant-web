@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { searchController, Viewport } from '../../modules';
 import { quickValidation } from '../../modules/diagnostics';
 import pdfService from '../../services/pdfService';
@@ -29,6 +30,13 @@ const TextLayer: React.FC<TextLayerProps> = ({
 }) => {
   const [textItems, setTextItems] = useState<TextItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+
+  // Memoize text items to prevent infinite loops
+  const memoizedTextItems = useMemo(
+    () => textItems,
+    [textItems.length, pageNum] // Stable comparison
+  );
 
   // Extract text items using direct coordinate approach
   useEffect(() => {
@@ -36,10 +44,11 @@ const TextLayer: React.FC<TextLayerProps> = ({
     
     let cancelled = false;
     setIsLoading(true);
+    setIsReady(false);
 
     const extractTextItems = async () => {
       try {
-        console.log(`TextLayer: Extracting text for page ${pageNum} using direct positioning`);
+        console.log(`TextLayer: Extracting text for page ${pageNum} using Portal approach`);
         
         const items = await pdfService.extractTextForDirectRendering(
           pdfDoc,
@@ -52,14 +61,12 @@ const TextLayer: React.FC<TextLayerProps> = ({
         setTextItems(items);
         console.log(`TextLayer: Extracted ${items.length} text items for page ${pageNum}`);
         
-        // Run alignment validation
-        if (!(window as any).disableTextValidation && textLayerRef.current) {
-          setTimeout(() => {
-            if (textLayerRef.current && !cancelled) {
-              quickValidation(textLayerRef.current, viewport, pageNum);
-            }
-          }, 100);
-        }
+        // Mark as ready for search processing
+        setTimeout(() => {
+          if (!cancelled) {
+            setIsReady(true);
+          }
+        }, 100);
         
       } catch (error) {
         if (!cancelled) {
@@ -77,31 +84,31 @@ const TextLayer: React.FC<TextLayerProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [pdfDoc, pageNum, viewport.originalViewport, textLayerRef]);
+  }, [pdfDoc, pageNum, viewport.originalViewport?.scale]); // Stable dependencies
 
-  // Set up container dimensions and scaling
+  // Set up container dimensions (NO scaling - coordinates are pre-scaled)
   useEffect(() => {
     if (!textLayerRef.current || !viewport.originalViewport) return;
     
     const container = textLayerRef.current;
     
-    // Set container to match viewport dimensions
+    // Set container to match current viewport dimensions (already scaled)
     container.style.position = 'absolute';
     container.style.left = '0';
     container.style.top = '0';
-    container.style.width = `${viewport.originalViewport.width}px`;
-    container.style.height = `${viewport.originalViewport.height}px`;
+    container.style.width = `${viewport.width}px`;
+    container.style.height = `${viewport.height}px`;
     
-    // Apply scaling at container level (like old approach)
-    container.style.transform = `scale(${viewport.scale})`;
+    // NO container scaling - coordinates are already viewport-scaled
+    container.style.transform = 'none';
     container.style.transformOrigin = '0 0';
     
-    console.log(`TextLayer: Set container dimensions ${viewport.originalViewport.width}x${viewport.originalViewport.height} with scale ${viewport.scale}`);
+    console.log(`TextLayer: Set container dimensions ${viewport.width}x${viewport.height} (no scaling)`);
   }, [viewport, textLayerRef]);
 
-  // Process search when text items are ready
+  // Process search when text items are ready and stable
   useEffect(() => {
-    if (!textLayerRef.current || !highlightLayerRef.current || textItems.length === 0) return;
+    if (!isReady || !textLayerRef.current || !highlightLayerRef.current) return;
     
     const stats = searchController.getSearchStats();
     if (!stats.query.trim()) return;
@@ -118,16 +125,18 @@ const TextLayer: React.FC<TextLayerProps> = ({
           highlightLayerRef.current
         );
       }
-    }, 50);
+    }, 100);
     
     return () => clearTimeout(timeoutId);
     
-  }, [pageNum, viewport, textLayerRef, highlightLayerRef, textItems]);
+  }, [pageNum, viewport, textLayerRef, highlightLayerRef, isReady]); // Use isReady instead of textItems
 
-  // Subscribe to search controller changes
+  // Subscribe to search controller changes with stable dependencies
   useEffect(() => {
+    if (!isReady) return;
+    
     const unsubscribe = searchController.subscribe((stats) => {
-      if (!textLayerRef.current || !highlightLayerRef.current || textItems.length === 0) return;
+      if (!textLayerRef.current || !highlightLayerRef.current) return;
       if (!stats.query.trim()) return;
       
       console.log(`TextLayer: Search changed for page ${pageNum}, query: "${stats.query}"`);
@@ -142,21 +151,32 @@ const TextLayer: React.FC<TextLayerProps> = ({
             highlightLayerRef.current
           );
         }
-      }, 50);
+      }, 100);
     });
     
     return unsubscribe;
-  }, [pageNum, viewport, textLayerRef, highlightLayerRef, textItems]);
+  }, [pageNum, viewport, textLayerRef, highlightLayerRef, isReady]); // Stable dependencies
 
-  // Render text items using direct positioning (like old approach)
-  const renderTextItems = () => {
-    if (isLoading || textItems.length === 0) {
+  // Run validation when ready
+  useEffect(() => {
+    if (isReady && textLayerRef.current && !(window as any).disableTextValidation) {
+      setTimeout(() => {
+        if (textLayerRef.current) {
+          quickValidation(textLayerRef.current, viewport, pageNum);
+        }
+      }, 200);
+    }
+  }, [isReady, textLayerRef, viewport, pageNum]);
+
+  // Create Portal content for text items
+  const createTextPortal = () => {
+    if (!textLayerRef.current || isLoading || memoizedTextItems.length === 0) {
       return null;
     }
 
-    return textItems.map((item, idx) => (
+    const textSpans = memoizedTextItems.map((item, idx) => (
       <span
-        key={`${idx}-${item.x}-${item.y}`}
+        key={`${pageNum}-${idx}`} // Stable key with page prefix
         className="text-item"
         style={{
           position: 'absolute',
@@ -173,11 +193,13 @@ const TextLayer: React.FC<TextLayerProps> = ({
         {item.str}
       </span>
     ));
+
+    return createPortal(textSpans, textLayerRef.current);
   };
 
   return (
     <>
-      {renderTextItems()}
+      {createTextPortal()}
       <HighlightLayer
         pageNum={pageNum}
         viewport={viewport}
