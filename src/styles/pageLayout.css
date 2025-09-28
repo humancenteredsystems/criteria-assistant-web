@@ -61,14 +61,65 @@
 }
 
 /* Text layer content - hide glyphs but preserve geometry */
-.textLayer,
+.textLayer {
+  /* Reset all inherited font properties to prevent CSS cascade issues */
+  all: initial;
+  
+  /* Re-apply only necessary positioning */
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  pointer-events: none;
+  /* width and height set dynamically to match viewport */
+  /* No margin, border, or padding allowed */
+  margin: 0;
+  border: 0;
+  padding: 0;
+  
+  /* Critical: Let PDF.js control font properties */
+  font-size: inherit !important;
+  font-family: inherit !important;
+  line-height: inherit !important;
+  letter-spacing: inherit !important;
+  word-spacing: inherit !important;
+  
+  /* Define metric-compatible font stacks for PDF fonts */
+  --pdf-serif: 'Times New Roman', 'Liberation Serif', 'Nimbus Roman', serif;
+  --pdf-sans: Arial, 'Liberation Sans', 'Nimbus Sans', sans-serif;
+  --pdf-mono: 'Courier New', 'Liberation Mono', 'Nimbus Mono', monospace;
+}
+
 .textLayer span,
 .textLayer div {
+  /* Each span must preserve PDF.js's inline styles */
+  font-size: inherit !important;
+  font-family: inherit !important;
+  transform-origin: 0% 0% !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  
+  /* Precise line height control */
+  line-height: 1 !important;
+  vertical-align: baseline !important;
+  
+  /* Preserve exact positioning */
+  position: absolute !important;
+  display: block !important;
+  
+  /* Only hide the visual text */
   color: transparent !important;
   text-shadow: none !important;
-  caret-color: transparent;
-  /* Preserve all positioning and sizing styles */
+  caret-color: transparent !important;
+  opacity: 0.01 !important; /* Some browsers need minimal opacity for proper rendering */
 }
+
+/* Apply font families based on PDF.js's font detection */
+.textLayer [data-font-name*="Times"] { font-family: var(--pdf-serif) !important; }
+.textLayer [data-font-name*="Helvetica"] { font-family: var(--pdf-sans) !important; }
+.textLayer [data-font-name*="Arial"] { font-family: var(--pdf-sans) !important; }
+.textLayer [data-font-name*="Courier"] { font-family: var(--pdf-mono) !important; }
+.textLayer [data-font-name*="Mono"] { font-family: var(--pdf-mono) !important; }
 
 /* Highlight styles */
 .highlight {

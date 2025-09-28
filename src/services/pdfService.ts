@@ -88,7 +88,7 @@ export class PDFService {
       });
   }
 
-  // Render text layer using PDF.js v5.x TextLayer class
+  // Render text layer using PDF.js v5.x TextLayer class with font preservation
   async renderTextLayer(
     pdfDoc: PDFDocumentProxy,
     pageNum: number,
@@ -111,17 +111,22 @@ export class PDFService {
     container.style.height = `${viewport.height}px`;
     
     try {
-      console.log(`PDFService: Using PDF.js v5 TextLayer class for page ${pageNum}`);
+      console.log(`PDFService: Using PDF.js v5 TextLayer class for page ${pageNum} with font preservation`);
       
       // PDF.js v5 TextLayer class API
       const textLayer = new TextLayer({
         textContentSource: textContent,
         container,
-        viewport,
+        viewport
       });
       
       // Render the text layer
-      const renderPromise = textLayer.render();
+      const renderPromise = textLayer.render().then(() => {
+        // Post-processing: Add font metadata to text elements for CSS targeting
+        this.enhanceTextElementsWithFontData(textLayer.textDivs, textContent.items);
+        
+        console.log(`PDFService: Enhanced ${textLayer.textDivs.length} text elements with font data`);
+      });
       
       // Create a compatible render task interface
       const renderTask = {
@@ -137,6 +142,36 @@ export class PDFService {
       console.error('PDF.js TextLayer failed:', error);
       throw new Error(`Failed to render text layer for page ${pageNum}: ${error}`);
     }
+  }
+
+  // Private method to enhance text elements with font metadata
+  private enhanceTextElementsWithFontData(textDivs: HTMLElement[], textItems: any[]): void {
+    textDivs.forEach((div, index) => {
+      const item = textItems[index];
+      if (item && 'fontName' in item) {
+        // Add font name for CSS targeting
+        div.setAttribute('data-font-name', item.fontName || '');
+        
+        // Add font size information
+        if (item.height) {
+          div.setAttribute('data-font-size', item.height.toString());
+        }
+        
+        // Add transform information for debugging
+        if (item.transform && Array.isArray(item.transform)) {
+          div.setAttribute('data-transform', item.transform.join(','));
+        }
+        
+        // Ensure the element preserves its calculated styles
+        const computedStyle = window.getComputedStyle(div);
+        if (computedStyle.fontSize) {
+          div.style.setProperty('font-size', computedStyle.fontSize, 'important');
+        }
+        if (computedStyle.fontFamily) {
+          div.style.setProperty('font-family', computedStyle.fontFamily, 'important');
+        }
+      }
+    });
   }
 
 }

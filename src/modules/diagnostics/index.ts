@@ -7,3 +7,11 @@ export {
   logAlignmentDetails,
   performanceTracker
 } from './diagnostics';
+
+export {
+  validateTextAlignment,
+  generateAlignmentReport,
+  quickValidation,
+  type AlignmentReport,
+  type AlignmentIssue
+} from './textAlignment';

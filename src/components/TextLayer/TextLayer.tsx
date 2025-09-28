@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { searchController, Viewport } from '../../modules';
+import { quickValidation } from '../../modules/diagnostics';
 import pdfService from '../../services/pdfService';
 import HighlightLayer from '../HighlightLayer/HighlightLayer';
 
@@ -46,6 +47,15 @@ const TextLayer: React.FC<TextLayerProps> = ({
         if (cancelled) return;
         
         console.log(`TextLayer: Rendered text layer for page ${pageNum}`);
+        
+        // Run alignment validation (can be disabled by setting window.disableTextValidation = true)
+        if (!(window as any).disableTextValidation) {
+          setTimeout(() => {
+            if (textLayerRef.current && !cancelled) {
+              quickValidation(textLayerRef.current, viewport, pageNum);
+            }
+          }, 200); // Small delay to ensure DOM is fully updated
+        }
         
       } catch (error) {
         if (!cancelled) {
