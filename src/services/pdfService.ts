@@ -88,6 +88,46 @@ export class PDFService {
       });
   }
 
+  // Extract text items with viewport-scaled positioning for direct rendering
+  async extractTextForDirectRendering(
+    pdfDoc: PDFDocumentProxy, 
+    pageNum: number, 
+    viewport: PageViewport
+  ): Promise<TextItem[]> {
+    if (!pdfDoc) {
+      throw new Error('PDF document not provided');
+    }
+    
+    const page = await pdfDoc.getPage(pageNum);
+    const textContent = await page.getTextContent();
+    
+    return textContent.items
+      .filter((item): item is PDFTextItem => 'str' in item)
+      .map((item: PDFTextItem) => {
+        const transform = item.transform;
+        
+        // Extract position from transform matrix
+        const pdfX = transform[4];
+        const pdfY = transform[5];
+        
+        // Convert PDF coordinates to viewport coordinates
+        // PDF.js has built-in coordinate conversion
+        const [viewportX, viewportY] = viewport.convertToViewportPoint(pdfX, pdfY);
+        
+        // Calculate text dimensions in viewport space
+        const textWidth = (item.width || 0) * viewport.scale;
+        const textHeight = (item.height || 0) * viewport.scale;
+        
+        return {
+          str: item.str,
+          x: viewportX,
+          y: viewportY,
+          width: textWidth,
+          height: textHeight
+        };
+      });
+  }
+
   // Render text layer using PDF.js v5.x TextLayer class with font preservation
   async renderTextLayer(
     pdfDoc: PDFDocumentProxy,

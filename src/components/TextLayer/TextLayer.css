@@ -1,17 +1,40 @@
 /* src/components/TextLayer/TextLayer.css */
 /* 
- * This file is now minimal - main text layer styling is in pageLayout.css
- * Only component-specific overrides should be here
+ * Hybrid TextLayer CSS - simplified for direct positioning approach
+ * Combines the best of old and new approaches
  */
 
-.text-layer {
+/* Text item styling for direct positioning */
+.text-item {
   position: absolute;
-  inset: 0;               /* left:0; top:0; right:0; bottom:0; */
-  z-index: 1;
-  pointer-events: none;   /* allow interactions to pass through */
+  color: transparent !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  text-shadow: none !important;
+  caret-color: transparent !important;
+  
+  /* Prevent any layout shifts */
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  
+  /* Ensure text renders consistently */
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  
+  /* Use system fonts for consistent metrics */
+  font-family: Arial, sans-serif !important;
 }
 
-/* Legacy class support - redirect to main textLayer styles */
+/* Legacy class support for backward compatibility */
+.text-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
 .text-layer,
 .text-layer span,
 .text-layer div {
@@ -21,7 +44,7 @@
   pointer-events: none !important;
 }
 
-/* Highlight styles - moved from pageLayout.css for component isolation */
+/* Highlight styles */
 .highlight { 
   position: absolute; 
   background: rgba(255,235,59,.45); 

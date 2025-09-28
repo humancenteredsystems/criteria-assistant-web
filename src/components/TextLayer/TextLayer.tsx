@@ -1,8 +1,10 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { searchController, Viewport } from '../../modules';
 import { quickValidation } from '../../modules/diagnostics';
 import pdfService from '../../services/pdfService';
 import HighlightLayer from '../HighlightLayer/HighlightLayer';
+import { TextItem } from '../../types/viewport';
+import './TextLayer.css';
 
 interface TextLayerProps {
   pdfDoc: any;
@@ -13,8 +15,10 @@ interface TextLayerProps {
 }
 
 /**
- * Clean TextLayer component using the refactored modules
- * Renders text layer and triggers search processing through searchController
+ * Hybrid TextLayer component combining the best of both approaches:
+ * - Uses PDF.js for text extraction (current approach)
+ * - Uses direct positioning for rendering (old approach)
+ * - Container-level scaling for predictable behavior
  */
 const TextLayer: React.FC<TextLayerProps> = ({
   pdfDoc,
@@ -23,65 +27,87 @@ const TextLayer: React.FC<TextLayerProps> = ({
   textLayerRef,
   highlightLayerRef
 }) => {
-  // Render text layer with PDF.js
+  const [textItems, setTextItems] = useState<TextItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Extract text items using direct coordinate approach
   useEffect(() => {
-    if (!pdfDoc || !textLayerRef.current) return;
+    if (!pdfDoc || !viewport.originalViewport) return;
     
     let cancelled = false;
-    let renderTask: any = null;
+    setIsLoading(true);
 
-    const renderTextLayer = async () => {
-      const container = textLayerRef.current!;
-      
+    const extractTextItems = async () => {
       try {
-        const { renderTask: task } = await pdfService.renderTextLayer(
+        console.log(`TextLayer: Extracting text for page ${pageNum} using direct positioning`);
+        
+        const items = await pdfService.extractTextForDirectRendering(
           pdfDoc,
           pageNum,
-          viewport.originalViewport!,
-          container
+          viewport.originalViewport!
         );
-        renderTask = task;
-        
-        await task.promise;
         
         if (cancelled) return;
         
-        console.log(`TextLayer: Rendered text layer for page ${pageNum}`);
+        setTextItems(items);
+        console.log(`TextLayer: Extracted ${items.length} text items for page ${pageNum}`);
         
-        // Run alignment validation (can be disabled by setting window.disableTextValidation = true)
-        if (!(window as any).disableTextValidation) {
+        // Run alignment validation
+        if (!(window as any).disableTextValidation && textLayerRef.current) {
           setTimeout(() => {
             if (textLayerRef.current && !cancelled) {
               quickValidation(textLayerRef.current, viewport, pageNum);
             }
-          }, 200); // Small delay to ensure DOM is fully updated
+          }, 100);
         }
         
       } catch (error) {
         if (!cancelled) {
-          console.error(`TextLayer: Failed to render text layer for page ${pageNum}:`, error);
+          console.error(`TextLayer: Failed to extract text for page ${pageNum}:`, error);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
         }
       }
     };
 
-    renderTextLayer();
+    extractTextItems();
 
     return () => {
       cancelled = true;
-      renderTask?.cancel?.();
     };
-  }, [pdfDoc, pageNum, viewport.scale, textLayerRef]);
+  }, [pdfDoc, pageNum, viewport.originalViewport, textLayerRef]);
 
-  // Process search when text layer is ready and search controller has a query
+  // Set up container dimensions and scaling
   useEffect(() => {
-    if (!textLayerRef.current || !highlightLayerRef.current) return;
+    if (!textLayerRef.current || !viewport.originalViewport) return;
+    
+    const container = textLayerRef.current;
+    
+    // Set container to match viewport dimensions
+    container.style.position = 'absolute';
+    container.style.left = '0';
+    container.style.top = '0';
+    container.style.width = `${viewport.originalViewport.width}px`;
+    container.style.height = `${viewport.originalViewport.height}px`;
+    
+    // Apply scaling at container level (like old approach)
+    container.style.transform = `scale(${viewport.scale})`;
+    container.style.transformOrigin = '0 0';
+    
+    console.log(`TextLayer: Set container dimensions ${viewport.originalViewport.width}x${viewport.originalViewport.height} with scale ${viewport.scale}`);
+  }, [viewport, textLayerRef]);
+
+  // Process search when text items are ready
+  useEffect(() => {
+    if (!textLayerRef.current || !highlightLayerRef.current || textItems.length === 0) return;
     
     const stats = searchController.getSearchStats();
     if (!stats.query.trim()) return;
     
     console.log(`TextLayer: Processing search for page ${pageNum}, query: "${stats.query}"`);
     
-    // Add a small delay to ensure text layer is fully rendered
     const timeoutId = setTimeout(() => {
       if (textLayerRef.current && highlightLayerRef.current) {
         searchController.processPageSearch(
@@ -92,21 +118,20 @@ const TextLayer: React.FC<TextLayerProps> = ({
           highlightLayerRef.current
         );
       }
-    }, 100);
+    }, 50);
     
     return () => clearTimeout(timeoutId);
     
-  }, [pageNum, viewport, textLayerRef, highlightLayerRef]);
+  }, [pageNum, viewport, textLayerRef, highlightLayerRef, textItems]);
 
-  // Subscribe to search controller changes to trigger processing
+  // Subscribe to search controller changes
   useEffect(() => {
     const unsubscribe = searchController.subscribe((stats) => {
-      if (!textLayerRef.current || !highlightLayerRef.current) return;
+      if (!textLayerRef.current || !highlightLayerRef.current || textItems.length === 0) return;
       if (!stats.query.trim()) return;
       
       console.log(`TextLayer: Search changed for page ${pageNum}, query: "${stats.query}"`);
       
-      // Process search when query changes
       setTimeout(() => {
         if (textLayerRef.current && highlightLayerRef.current) {
           searchController.processPageSearch(
@@ -117,18 +142,48 @@ const TextLayer: React.FC<TextLayerProps> = ({
             highlightLayerRef.current
           );
         }
-      }, 100);
+      }, 50);
     });
     
     return unsubscribe;
-  }, [pageNum, viewport, textLayerRef, highlightLayerRef]);
+  }, [pageNum, viewport, textLayerRef, highlightLayerRef, textItems]);
+
+  // Render text items using direct positioning (like old approach)
+  const renderTextItems = () => {
+    if (isLoading || textItems.length === 0) {
+      return null;
+    }
+
+    return textItems.map((item, idx) => (
+      <span
+        key={`${idx}-${item.x}-${item.y}`}
+        className="text-item"
+        style={{
+          position: 'absolute',
+          left: `${item.x}px`,
+          top: `${item.y}px`,
+          color: 'transparent',
+          pointerEvents: 'none',
+          userSelect: 'none',
+          fontSize: `${item.height}px`,
+          lineHeight: '1',
+          whiteSpace: 'nowrap'
+        }}
+      >
+        {item.str}
+      </span>
+    ));
+  };
 
   return (
-    <HighlightLayer
-      pageNum={pageNum}
-      viewport={viewport}
-      highlightLayerRef={highlightLayerRef}
-    />
+    <>
+      {renderTextItems()}
+      <HighlightLayer
+        pageNum={pageNum}
+        viewport={viewport}
+        highlightLayerRef={highlightLayerRef}
+      />
+    </>
   );
 };
 
