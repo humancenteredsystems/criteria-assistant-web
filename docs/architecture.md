@@ -97,7 +97,7 @@ src/
 │   │   ├── SearchBar.tsx       # Uses searchController
 │   │   └── SearchBar.css
 │   ├── TextLayer/
-│   │   ├── TextLayer.tsx       # Triggers searchController.processPageSearch
+│   │   ├── TextLayer.tsx       # Portal-based text rendering + search processing
 │   │   └── TextLayer.css
 │   └── HighlightLayer/
 │       ├── HighlightLayer.tsx  # Calls renderer.paintHighlights
@@ -151,18 +151,46 @@ src/
 * **fit_modes/**: Viewport calculations for "Fit Width", "Fit Page", custom scaling
 * **diagnostics/**: Alignment validation, performance monitoring, debug tools
 
-### 5.3 Data Flow
+### 5.3 Text Layer Portal Architecture
 
-1. **Search Input**: User enters query → SearchBar → `searchController.startNewSearch(query)`
-2. **Processing**: TextLayer → `searchController.processPageSearch(page, query, textEl, viewport, hlLayer)`
-   - Tokenizes text content
+**Problem Solved**: The original implementation rendered text spans as React siblings outside the text container, breaking the search pipeline which expected text content inside the container.
+
+**Portal Solution**: Uses React `createPortal()` to render text spans INSIDE the `textLayerRef` container while maintaining React component structure.
+
+```jsx
+// TextLayer renders text INTO the container via Portal
+const textSpans = textItems.map(item => <span key={...} style={{...}}>{item.str}</span>);
+return createPortal(textSpans, textLayerRef.current);
+```
+
+**Key Benefits**:
+* **Search Pipeline Integrity**: `textElement.textContent` now contains actual text
+* **Geometry Measurement**: Range API can find text nodes inside the container
+* **Coordinate Precision**: Uses PDF.js `convertToViewportPoint()` for exact positioning
+* **No Double Scaling**: Coordinates are pre-scaled; no container transforms needed
+* **Stable Rendering**: Memoization and `isReady` state prevent infinite loops
+
+### 5.4 Data Flow (Smoothed Pipeline)
+
+1. **Text Extraction**: PDF.js extracts text with transform matrices → `extractTextForDirectRendering()`
+2. **Coordinate Conversion**: PDF coordinates → viewport coordinates via `convertToViewportPoint()`
+3. **Portal Rendering**: Text spans rendered INSIDE `textLayerRef` container via React Portal
+4. **Search Input**: User enters query → SearchBar → `searchController.startNewSearch(query)`
+5. **Processing**: TextLayer → `searchController.processPageSearch(page, query, textEl, viewport, hlLayer)`
+   - Tokenizes text content (now available in container)
    - Finds query matches
-   - Measures substring rectangles
+   - Measures substring rectangles using Range API
    - Converts to PDF-space coordinates
    - Stores as `MatchRect[]` in store
-3. **Rendering**: HighlightLayer → `renderer.paintHighlights(page, viewport, rects, layer)`
-4. **Navigation**: SearchBar → `searchController.nextMatch()` / `prevMatch()`
-5. **Viewport Changes**: PDFViewer → `controller.handleViewportChange()` → repaint highlights only
+6. **Rendering**: HighlightLayer → `renderer.paintHighlights(page, viewport, rects, layer)`
+7. **Navigation**: SearchBar → `searchController.nextMatch()` / `prevMatch()`
+8. **Viewport Changes**: PDFViewer → `controller.handleViewportChange()` → repaint highlights only
+
+**Pipeline Invariants**:
+* Text spans are always children of the text container (via Portal)
+* Coordinates use single scaling approach (no container transforms)
+* Search processing waits for Portal rendering completion (`isReady` state)
+* Effect dependencies are stable to prevent infinite re-renders
 
 ### 5.4 Legacy Code Removed
 
